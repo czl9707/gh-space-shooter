@@ -44,6 +44,7 @@ Then display it in your README:
 - `username` (optional): Username to generate game for (defaults to repo owner)
 - `output-path` (optional): Where to save the GIF (default: `gh-space-shooter.gif`)
 - `strategy` (optional): Attack pattern - `column`, `row`, or `random` (default: `random`)
+- `fps` (optional): Frames per second for the animation (default: `40`)
 - `commit-message` (optional): Commit message for the update
 
 ### From PyPI
@@ -108,6 +109,11 @@ gh-space-shooter torvalds -o my-game.gif
 gh-space-shooter torvalds --strategy column   # Enemies attack in columns
 gh-space-shooter torvalds --strategy row      # Enemies attack in rows
 gh-space-shooter torvalds -s random           # Random chaos (default)
+
+# Adjust animation frame rate
+gh-space-shooter torvalds --fps 25            # Slower, smaller file size
+gh-space-shooter torvalds --fps 40            # Default frame rate
+gh-space-shooter torvalds --fps 50            # Smoother animation
 ```
 
 This creates an animated GIF showing:

@@ -22,6 +22,10 @@ inputs:
     description: 'Enemy attack strategy (column, row, or random)'
     required: false
     default: 'random'
+  fps:
+    description: 'Frames per second for the animation (default: 40)'
+    required: false
+    default: '40'
   commit-message:
     description: 'Commit message for the GIF update'
     required: false
@@ -54,7 +58,8 @@ runs:
       run: |
         gh-space-shooter ${{ inputs.username }} \
           --output ${{ inputs.output-path }} \
-          --strategy ${{ inputs.strategy }}
+          --strategy ${{ inputs.strategy }} \
+          --fps ${{ inputs.fps }}
 
     - name: Commit and push GIF
       shell: bash

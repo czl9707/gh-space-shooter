@@ -42,7 +42,7 @@ class Enemy(Drawable):
             self.game_state.explosions.append(explosion)
             self.game_state.enemies.remove(self)
 
-    def animate(self) -> None:
+    def animate(self, delta_time: float) -> None:
         """Update enemy state for next frame (enemies don't animate currently)."""
         pass
 

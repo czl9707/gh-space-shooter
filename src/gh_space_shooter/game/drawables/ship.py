@@ -19,7 +19,7 @@ class Ship(Drawable):
         """Initialize the ship at starting position."""
         self.x: float = 25  # Start middle of screen
         self.target_x = self.x
-        self.shoot_cooldown = 0  # Frames until ship can shoot again
+        self.shoot_cooldown = 0.0  # Seconds until ship can shoot again
         self.game_state = game_state
 
     def move_to(self, x: int):
@@ -37,18 +37,23 @@ class Ship(Drawable):
 
     def can_shoot(self) -> bool:
         """Check if ship can shoot (cooldown has finished)."""
-        return self.shoot_cooldown == 0
+        return self.shoot_cooldown <= 0
 
-    def animate(self) -> None:
-        """Update ship position, moving toward target at constant speed."""
+    def animate(self, delta_time: float) -> None:
+        """Update ship position, moving toward target at constant speed.
+
+        Args:
+            delta_time: Time elapsed since last frame in seconds.
+        """
+        delta_x = SHIP_SPEED * delta_time
         if self.x < self.target_x:
-            self.x = min(self.x + SHIP_SPEED, self.target_x)
+            self.x = min(self.x + delta_x, self.target_x)
         elif self.x > self.target_x:
-            self.x = max(self.x - SHIP_SPEED, self.target_x)
+            self.x = max(self.x - delta_x, self.target_x)
 
-        # Decrement shoot cooldown
+        # Decrement shoot cooldown (scaled by delta_time)
         if self.shoot_cooldown > 0:
-            self.shoot_cooldown -= 1
+            self.shoot_cooldown -= delta_time
 
     def draw(self, draw: ImageDraw.ImageDraw, context: "RenderContext") -> None:
         """Draw a simple Galaga-style ship."""

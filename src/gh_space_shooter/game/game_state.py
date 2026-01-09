@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, List
 
 from PIL import ImageDraw
 
-from ..constants import SHIP_SHOOT_COOLDOWN_FRAMES
+from ..constants import SHIP_SHOOT_COOLDOWN
 from ..github_client import ContributionData
 from .drawables import Bullet, Drawable, Enemy, Explosion, Ship, Starfield
 
@@ -47,7 +47,7 @@ class GameState(Drawable):
         """
         bullet = Bullet(int(self.ship.x), game_state=self)
         self.bullets.append(bullet)
-        self.ship.shoot_cooldown = SHIP_SHOOT_COOLDOWN_FRAMES
+        self.ship.shoot_cooldown = SHIP_SHOOT_COOLDOWN
 
     def is_complete(self) -> bool:
         """Check if game is complete (all enemies destroyed)."""
@@ -57,16 +57,20 @@ class GameState(Drawable):
         """Check if ship can take an action (not moving and can shoot)."""
         return not self.ship.is_moving() and self.ship.can_shoot()
 
-    def animate(self) -> None:
-        """Update all game objects for next frame."""
-        self.starfield.animate()
-        self.ship.animate()
+    def animate(self, delta_time: float) -> None:
+        """Update all game objects for next frame.
+
+        Args:
+            delta_time: Time elapsed since last frame in seconds.
+        """
+        self.starfield.animate(delta_time)
+        self.ship.animate(delta_time)
         for enemy in self.enemies:
-            enemy.animate()
+            enemy.animate(delta_time)
         for bullet in self.bullets:
-            bullet.animate()
+            bullet.animate(delta_time)
         for explosion in self.explosions:
-            explosion.animate()
+            explosion.animate(delta_time)
 
     def draw(self, draw: ImageDraw.ImageDraw, context: "RenderContext") -> None:
         """Draw all game objects including the grid."""

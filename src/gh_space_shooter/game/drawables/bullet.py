@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from PIL import ImageDraw
 
-from ...constants import BULLET_SPEED, BULLET_TRAILING_LENGTH, SHIP_POSITION_Y
+from ...constants import BULLET_SPEED, BULLET_TRAILING_LENGTH, BULLET_TRAIL_SPACING, SHIP_POSITION_Y
 from .drawable import Drawable
 from .explosion import Explosion
 
@@ -37,9 +37,13 @@ class Bullet(Drawable):
                 return enemy
         return None
 
-    def animate(self) -> None:
-        """Update bullet position, check for collisions, and remove on hit."""
-        self.y -= BULLET_SPEED
+    def animate(self, delta_time: float) -> None:
+        """Update bullet position, check for collisions, and remove on hit.
+
+        Args:
+            delta_time: Time elapsed since last frame in seconds.
+        """
+        self.y -= BULLET_SPEED * delta_time
         hit_enemy = self._check_collision()
         if hit_enemy:
             explosion = Explosion(self.x, self.y, "small", self.game_state)
@@ -53,7 +57,7 @@ class Bullet(Drawable):
         """Draw the bullet with trailing tail effect."""
 
         for i in range(BULLET_TRAILING_LENGTH):
-            trail_y = self.y + (i + 1) * BULLET_SPEED
+            trail_y = self.y + (i + 1) * BULLET_TRAIL_SPACING
             fade_factor = (i + 1) / BULLET_TRAILING_LENGTH / 2
             self._draw_bullet(draw, context, (self.x, trail_y), fade_factor=fade_factor)
 

@@ -5,7 +5,6 @@ from typing import Iterator
 from PIL import Image
 
 
-from ..constants import FRAME_DURATION_MS
 from ..github_client import ContributionData
 from .game_state import GameState
 from .renderer import Renderer
@@ -20,7 +19,7 @@ class Animator:
         self,
         contribution_data: ContributionData,
         strategy: BaseStrategy,
-        frame_duration: int = FRAME_DURATION_MS,
+        fps: int,
     ):
         """
         Initialize animator.
@@ -28,11 +27,15 @@ class Animator:
         Args:
             contribution_data: The GitHub contribution data
             strategy: The strategy to use for clearing enemies
-            frame_duration: Duration of each frame in milliseconds
+            fps: Frames per second for the animation
         """
         self.contribution_data = contribution_data
         self.strategy = strategy
-        self.frame_duration = frame_duration
+        self.fps = fps
+        self.frame_duration = 1000 // fps
+        # Delta time in seconds per frame
+        # Used to scale all speeds (cells/second) to per-frame movement
+        self.delta_time = 1.0 / fps
 
     def generate_gif(self, output_path: str) -> None:
         """
@@ -79,18 +82,18 @@ class Animator:
         for action in self.strategy.generate_actions(game_state):
             game_state.ship.move_to(action.x)
             while game_state.can_take_action() is False:
-                game_state.animate()
+                game_state.animate(self.delta_time)
                 yield renderer.render_frame()
 
             if action.shoot:
                 game_state.shoot()
-                game_state.animate()
+                game_state.animate(self.delta_time)
                 yield renderer.render_frame()
 
         force_kill_countdown = 100
         # Add final frames showing completion
         while not game_state.is_complete():
-            game_state.animate()
+            game_state.animate(self.delta_time)
             yield renderer.render_frame()
             
             force_kill_countdown -= 1

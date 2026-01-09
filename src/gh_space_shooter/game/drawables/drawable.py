@@ -13,8 +13,12 @@ class Drawable(ABC):
     """Interface for objects that can be animated and drawn."""
 
     @abstractmethod
-    def animate(self) -> None:
-        """Update the object's state for the next animation frame."""
+    def animate(self, delta_time: float) -> None:
+        """Update the object's state for the next animation frame.
+
+        Args:
+            delta_time: Time elapsed since last frame in seconds.
+        """
         pass
 
     @abstractmethod

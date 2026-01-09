@@ -8,8 +8,8 @@ import typer
 from dotenv import load_dotenv
 from rich.console import Console
 
-from gh_space_shooter.game.strategies.base_strategy import BaseStrategy
-
+from .constants import DEFAULT_FPS
+from .game.strategies.base_strategy import BaseStrategy
 from .console_printer import ContributionConsolePrinter
 from .game import Animator, ColumnStrategy, RandomStrategy, RowStrategy
 from .github_client import ContributionData, GitHubAPIError, GitHubClient
@@ -55,6 +55,11 @@ def main(
         "-s",
         help="Strategy for clearing enemies (column, row, random)",
     ),
+    fps: int = typer.Option(
+        DEFAULT_FPS,
+        "--fps",
+        help="Frames per second for the animation",
+    ),
 ) -> None:
     """
     Fetch or load GitHub contribution graph data and display it.
@@ -90,7 +95,7 @@ def main(
             _save_data_to_file(data, raw_output)
 
         # Generate GIF if requested
-        _generate_gif(data, out, strategy)
+        _generate_gif(data, out, strategy, fps)
 
     except CLIError as e:
         err_console.print(f"[bold red]Error:[/bold red] {e}")
@@ -146,8 +151,14 @@ def _save_data_to_file(data: ContributionData, file_path: str) -> None:
         raise CLIError(f"Failed to save file '{file_path}': {e}")
 
 
-def _generate_gif(data: ContributionData, file_path: str, strategy_name: str) -> None:
+def _generate_gif(data: ContributionData, file_path: str, strategy_name: str, fps: int) -> None:
     """Generate animated GIF visualization."""
+    # GIF format limitation: delays below 20ms (>50 FPS) are clamped by most browsers
+    if fps > 50:
+        console.print(
+            f"[yellow]Warning:[/yellow] FPS > 50 may not display correctly in browsers "
+            f"(GIF delay will be {1000 // fps}ms, but browsers clamp delays < 20ms to ~100ms)"
+        )
     console.print("\n[bold blue]Generating GIF animation...[/bold blue]")
 
     if strategy_name == "column":
@@ -163,7 +174,7 @@ def _generate_gif(data: ContributionData, file_path: str, strategy_name: str) ->
 
     # Create animator and generate GIF
     try:
-        animator = Animator(data, strategy)
+        animator = Animator(data, strategy, fps=fps)
         animator.generate_gif(file_path)
         console.print(f"[green]✓[/green] GIF saved to {file_path}")
     except Exception as e:
