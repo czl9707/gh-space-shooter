@@ -60,6 +60,11 @@ def main(
         "--fps",
         help="Frames per second for the animation",
     ),
+    maxFrame: int | None = typer.Option(
+        None,
+        "--max-frame",
+        help="Maximum number of frames to generate",
+    ),
     watermark: bool = typer.Option(
         False,
         "--watermark",
@@ -100,7 +105,7 @@ def main(
             _save_data_to_file(data, raw_output)
 
         # Generate GIF if requested
-        _generate_gif(data, out, strategy, fps, watermark)
+        _generate_gif(data, out, strategy, fps, watermark, maxFrame)
 
     except CLIError as e:
         err_console.print(f"[bold red]Error:[/bold red] {e}")
@@ -156,7 +161,14 @@ def _save_data_to_file(data: ContributionData, file_path: str) -> None:
         raise CLIError(f"Failed to save file '{file_path}': {e}")
 
 
-def _generate_gif(data: ContributionData, file_path: str, strategy_name: str, fps: int, watermark: bool) -> None:
+def _generate_gif(
+    data: ContributionData, 
+    file_path: str, 
+    strategy_name: str, 
+    fps: int, 
+    watermark: bool, 
+    maxFrame: int | None
+) -> None:
     """Generate animated GIF visualization."""
     # GIF format limitation: delays below 20ms (>50 FPS) are clamped by most browsers
     if fps > 50:
@@ -180,7 +192,11 @@ def _generate_gif(data: ContributionData, file_path: str, strategy_name: str, fp
     # Create animator and generate GIF
     try:
         animator = Animator(data, strategy, fps=fps, watermark=watermark)
-        animator.generate_gif(file_path)
+        buffer = animator.generate_gif(maxFrame=maxFrame)
+        console.print("[bold blue]Saving GIF animation...[/bold blue]")
+        with open(file_path, "wb") as f:
+            f.write(buffer.getvalue())
+
         console.print(f"[green]✓[/green] GIF saved to {file_path}")
     except Exception as e:
         raise CLIError(f"Failed to generate GIF: {e}")

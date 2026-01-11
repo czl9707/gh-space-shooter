@@ -106,14 +106,15 @@ gh-space-shooter torvalds --output my-epic-game.gif
 gh-space-shooter torvalds -o my-game.gif
 
 # Choose enemy attack strategy
-gh-space-shooter torvalds --strategy column   # Enemies attack in columns
 gh-space-shooter torvalds --strategy row      # Enemies attack in rows
 gh-space-shooter torvalds -s random           # Random chaos (default)
 
 # Adjust animation frame rate
-gh-space-shooter torvalds --fps 25            # Slower, smaller file size
-gh-space-shooter torvalds --fps 40            # Default frame rate
-gh-space-shooter torvalds --fps 50            # Smoother animation
+gh-space-shooter torvalds --fps 25            # Lower Frame rate, Smaller file size
+gh-space-shooter torvalds --fps 40            # Default Frame rate, Larger file size
+
+# Stop the animation earlier
+gh-space-shooter torvalds --max-frame 200     # Stop after 200 frames
 ```
 
 This creates an animated GIF showing:

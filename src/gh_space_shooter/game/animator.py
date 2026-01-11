@@ -1,9 +1,9 @@
 """Animator for generating GIF animations from game strategies."""
 
+from io import BytesIO
 from typing import Iterator
 
 from PIL import Image
-
 
 from ..github_client import ContributionData
 from .game_state import GameState
@@ -40,7 +40,7 @@ class Animator:
         # Used to scale all speeds (cells/second) to per-frame movement
         self.delta_time = 1.0 / fps
 
-    def generate_gif(self, output_path: str) -> None:
+    def generate_gif(self, maxFrame: int | None) -> BytesIO:
         """
         Generate animated GIF and save to file.
 
@@ -51,18 +51,25 @@ class Animator:
         game_state = GameState(self.contribution_data)
         renderer = Renderer(game_state, RenderContext.darkmode(), watermark=self.watermark)
 
-        frames = self._generate_frames(game_state, renderer)
+        frames: list[Image.Image] = []
+        for frame in self._generate_frames(game_state, renderer):
+            frames.append(frame)
+            if maxFrame is not None and len(frames) >= maxFrame:
+                break
 
-        # Save as GIF
+        gif_buffer = BytesIO()
         if frames:
-            next(frames).save(
-                output_path,
+            frames[0].save(
+                gif_buffer,
+                format="gif",
                 save_all=True,
-                append_images=list(frames),
+                append_images=frames[1:],
                 duration=self.frame_duration,
                 loop=0,  # Loop forever
                 optimize=False,
             )
+        
+        return gif_buffer
 
     def _generate_frames(
         self, game_state: GameState, renderer: Renderer
