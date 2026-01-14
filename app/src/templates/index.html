@@ -183,6 +183,17 @@
                     box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
                 }
             }
+
+            select {
+                /* hide the native triangle and create out own. */
+                appearance: none;
+                -webkit-appearance: none;
+                padding-right: var(--spacing-xl);
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='%238b949e'%3E%3Cpath d='M6 8.5L1.5 4h9L6 8.5z'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right var(--spacing-md) center;
+                cursor: pointer;
+            }
         }
 
         /* ==========================================================================
@@ -357,9 +368,20 @@
         }
 
         @keyframes cycleNotice {
-            0%, 5% { opacity: 0; }
-            10%, 28% { opacity: 1; }
-            33%, 100% { opacity: 0; }
+            0%, 4% { opacity: 0; }
+            8%, 21% { opacity: 1; }
+            25%, 100% { opacity: 0; }
+        }
+
+        /* ==========================================================================
+           Footer
+           ========================================================================== */
+        .footer {
+            padding: var(--spacing-md) var(--spacing-xl);
+            border-top: 1px solid var(--color-border-default);
+            text-align: center;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
         }
     </style>
 </head>
@@ -419,10 +441,14 @@
 
         <div class="notices">
             <p>Generation may be slow on the public instance due to server load.</p>
-            <p>You may experience rate limiting from the GitHub API during high traffic.</p>
+            <p>Web version has limited max frame count. Use the <a href="https://github.com/czl9707/gh-space-shooter" target="_blank" rel="noopener noreferrer">library</a> for full animations.</p>
             <p>Enjoying this? <a href="https://github.com/czl9707/gh-space-shooter" target="_blank" rel="noopener noreferrer">Give the repo a star!</a></p>
         </div>
     </main>
+
+    <footer class="footer">
+        @Zane Chen 2026-present. All rights reserved.
+    </footer>
 
     <script>
         const main = document.querySelector('main');

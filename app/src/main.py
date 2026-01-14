@@ -37,7 +37,7 @@ def generate_gif(username: str, strategy: str, token: str) -> BytesIO:
     strategy_class: type[BaseStrategy] = STRATEGY_MAP.get(strategy, RandomStrategy)
     strat = strategy_class()
 
-    animator = Animator(data, strat, fps=25, watermark=True)
+    animator = Animator(data, strat, fps=20, watermark=True)
     return animator.generate_gif(maxFrame=250)
 
 @app.get("/", response_class=HTMLResponse)
