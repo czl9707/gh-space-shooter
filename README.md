@@ -1,6 +1,6 @@
 # gh-space-shooter 🚀
 
-Transform your GitHub contribution graph into an epic space shooter game! 
+Transform your GitHub contribution graph into an epic space shooter game!
 
 ![Example Game](example.gif)
 
@@ -8,7 +8,7 @@ Transform your GitHub contribution graph into an epic space shooter game!
 
 ### Onetime Generation
 
-A [web interface](https://gh-space-shooter.kiyo-n-zane.com) is available for on-demand GIF generation without installing anything locally. 
+A [web interface](https://gh-space-shooter.kiyo-n-zane.com) is available for on-demand GIF generation without installing anything locally.
 
 ### GitHub Action
 
@@ -39,11 +39,21 @@ jobs:
 ```
 
 Then display it in your README:
+
 ```markdown
 ![My GitHub Game](game.gif)
 ```
 
+Or add these markers to let the tool automatically insert the image tag
+if it finds them:
+
+```markdown
+<!--START_SECTION:shooter-->
+<!--END_SECTION:shooter-->
+```
+
 **Action Inputs:**
+
 - `github-token` (required): GitHub token for fetching contributions
 - `username` (optional): Username to generate game for (defaults to repo owner)
 - `output-path` (optional): Where to save the GIF (default: `gh-space-shooter.gif`)
@@ -74,12 +84,13 @@ pip install -e .
 ## Setup
 
 1. Create a GitHub Personal Access Token:
-   - Go to https://github.com/settings/tokens
+   - Go to <https://github.com/settings/tokens>
    - Click "Generate new token (classic)"
    - Select scopes: `read:user`
    - Copy the generated token
 
 2. Set up your environment:
+
    ```bash
    # Copy the example env file
    touch .env
@@ -87,11 +98,10 @@ pip install -e .
    ```
 
    Alternatively, export the token directly:
+
    ```bash
    export GH_TOKEN=your_token_here
    ```
-
-## Usage
 
 ### Generate Your Game GIF
 
@@ -122,6 +132,7 @@ gh-space-shooter torvalds --max-frame 200     # Stop after 200 frames
 ```
 
 This creates an animated GIF showing:
+
 - Your contribution graph as enemies (more contributions = stronger enemies)
 - A Galaga-style spaceship battling through your coding history
 - Enemy attack patterns based on your chosen strategy
@@ -144,6 +155,7 @@ gh-space-shooter torvalds -o game.gif -ro data.json -s column
 ### Data Format
 
 When saved to JSON, the data includes:
+
 ```json
 {
   "username": "torvalds",
