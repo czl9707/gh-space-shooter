@@ -122,3 +122,35 @@ class TestBulletCollision:
                 bullet.animate(TEST_DELTA_TIME)
 
         assert bullet not in default_game_state.bullets
+
+    def test_enemy_survives_multiple_hits(self, default_game_state: GameState) -> None:
+        """Test that an enemy with health > 1 survives hits until health is 0."""
+        
+        enemy = Enemy(x=10, y=5, health=3, game_state=default_game_state)
+        default_game_state.enemies.append(enemy)
+
+        # First hit
+        bullet1 = Bullet(x=10, game_state=default_game_state)
+        bullet1.y = 4.0
+        default_game_state.bullets.append(bullet1)
+        bullet1.animate(TEST_DELTA_TIME)
+        
+        assert enemy.health == 2
+        assert enemy in default_game_state.enemies
+        
+        # Second hit
+        bullet2 = Bullet(x=10, game_state=default_game_state)
+        bullet2.y = 4.0
+        default_game_state.bullets.append(bullet2)
+        bullet2.animate(TEST_DELTA_TIME)
+
+        assert enemy.health == 1
+        assert enemy in default_game_state.enemies
+
+        # Third hit (final)
+        bullet3 = Bullet(x=10, game_state=default_game_state)
+        bullet3.y = 4.0
+        default_game_state.bullets.append(bullet3)
+        bullet3.animate(TEST_DELTA_TIME)
+        
+        assert enemy not in default_game_state.enemies

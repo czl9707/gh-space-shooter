@@ -1,11 +1,14 @@
 """Player ship object."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List # Import List
 
 from PIL import ImageDraw
 
-from ...constants import SHIP_POSITION_Y, SHIP_SPEED
+from ...constants import SHIP_POSITION_Y, SHIP_SPEED, SHIP_MAX_HEALTH, RAPID_FIRE_DURATION # Import RAPID_FIRE_DURATION
 from .drawable import Drawable
+from .explosion import Explosion # Import Explosion
+from .power_up import PowerUp # Import PowerUp
+
 
 if TYPE_CHECKING:
     from ..game_state import GameState
@@ -21,6 +24,20 @@ class Ship(Drawable):
         self.target_x = self.x
         self.shoot_cooldown = 0.0  # Seconds until ship can shoot again
         self.game_state = game_state
+        self.health = SHIP_MAX_HEALTH # Ship's health
+        self.is_destroyed = False # Flag if ship is destroyed
+        self.is_rapid_fire_active = False # Rapid fire power-up status
+        self.rapid_fire_duration_remaining = 0.0 # Time left for rapid fire
+
+    def take_damage(self) -> None:
+        """Ship takes 1 damage."""
+        if not self.is_destroyed:
+            self.health -= 1
+            if self.health <= 0:
+                self.is_destroyed = True
+                # Create large explosion when ship is destroyed
+                explosion = Explosion(self.x, SHIP_POSITION_Y, "large", self.game_state)
+                self.game_state.explosions.append(explosion)
 
     def move_to(self, x: int):
         """
@@ -36,7 +53,9 @@ class Ship(Drawable):
         return self.x != self.target_x
 
     def can_shoot(self) -> bool:
-        """Check if ship can shoot (cooldown has finished)."""
+        """Check if ship can shoot (cooldown has finished or rapid fire active)."""
+        if self.is_rapid_fire_active:
+            return True # Always can shoot if rapid fire is active
         return self.shoot_cooldown <= 0
 
     def animate(self, delta_time: float) -> None:
@@ -54,6 +73,37 @@ class Ship(Drawable):
         # Decrement shoot cooldown (scaled by delta_time)
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= delta_time
+        
+        # Decrement rapid fire duration
+        if self.is_rapid_fire_active:
+            self.rapid_fire_duration_remaining -= delta_time
+            if self.rapid_fire_duration_remaining <= 0:
+                self.is_rapid_fire_active = False # Deactivate rapid fire
+        
+        # Check for power-up collisions
+        collected_power_up = self._check_power_up_collision()
+        if collected_power_up:
+            collected_power_up.activate_effect(self) # PowerUp activates its effect on the ship
+
+    def _check_power_up_collision(self) -> "PowerUp | None":
+        """Check if ship has collided with a power-up."""
+        for power_up in self.game_state.power_ups:
+            # Simple collision: if ship and power-up are in the same (integer) x cell
+            # and power-up is at or below ship's y position
+            if int(self.x) == int(power_up.x) and power_up.y >= SHIP_POSITION_Y:
+                self.game_state.power_ups.remove(power_up)
+                return power_up
+        return None
+
+    def _check_power_up_collision(self) -> "PowerUp | None":
+        """Check if ship has collided with a power-up."""
+        for power_up in self.game_state.power_ups:
+            # Simple collision: if ship and power-up are in the same (integer) x cell
+            # and power-up is at or below ship's y position
+            if int(self.x) == int(power_up.x) and power_up.y >= SHIP_POSITION_Y:
+                self.game_state.power_ups.remove(power_up)
+                return power_up
+        return None
 
     def draw(self, draw: ImageDraw.ImageDraw, context: "RenderContext") -> None:
         """Draw a simple Galaga-style ship."""

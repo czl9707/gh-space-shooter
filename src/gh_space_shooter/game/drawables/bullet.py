@@ -49,6 +49,8 @@ class Bullet(Drawable):
             explosion = Explosion(self.x, self.y, "small", self.game_state)
             self.game_state.explosions.append(explosion)
             hit_enemy.take_damage()
+            if hit_enemy.health <= 0: # Check if enemy was destroyed by this bullet
+                self.game_state.score += 100
             self.game_state.bullets.remove(self)
         if self.y < -10:  # magic number to remove off-screen bullets
             self.game_state.bullets.remove(self)

@@ -47,6 +47,9 @@ class Renderer:
         # Draw watermark if enabled
         if self.watermark:
             self._draw_watermark(draw)
+        
+        # Draw score
+        self._draw_score(draw)
 
         combined = Image.alpha_composite(img.convert("RGBA"), overlay)
 
@@ -68,3 +71,21 @@ class Renderer:
         y = self.height - text_height - margin
 
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=color)
+
+    def _draw_score(self, draw: ImageDraw.ImageDraw) -> None:
+        """Draw the current score in the top-left corner."""
+        font = ImageFont.load_default()
+        color = (255, 255, 255)  # White color
+        margin = 5
+        score_text = f"Score: {self.game_state.score}"
+
+        # Get text bounding box
+        bbox = draw.textbbox((0, 0), score_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        # Position in top-left corner
+        x = margin
+        y = margin
+
+        draw.text((x, y), score_text, font=font, fill=color)
