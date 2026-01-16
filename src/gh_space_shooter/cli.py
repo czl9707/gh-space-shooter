@@ -207,34 +207,63 @@ def _generate_gif(
 
 
 def _maybe_update_readme_with_gif(gif_path: str) -> None:
+    """Update README with GIF path if markers exist."""
+    readme_path = _find_readme()
+    if not readme_path:
+        return
+    
     try:
-        with open("README.md", "r", encoding="utf-8") as f:
+        with open(readme_path, "r", encoding="utf-8") as f:
             content = f.read()
     except OSError:
         return
 
     pattern = re.compile(
-        r"(<!--START_SECTION:shooter-->)(.*?)(<!--END_SECTION:shooter-->)",
+        r"(<!--START_SECTION: shooter-->)(.*?)(<!--END_SECTION:shooter-->)",
         flags=re.DOTALL,
     )
+    
+    if not pattern.search(content):
+        return
+
+    readme_dir = os.path.dirname(os.path.abspath(readme_path))
+    gif_abs_path = os.path.abspath(gif_path)
+    relative_gif_path = os. path.relpath(gif_abs_path, start=readme_dir)
 
     def repl(match: re.Match[str]) -> str:
         return (
             f"{match.group(1)}\n"
-            f"![GitHub Space Shooter]({gif_path})\n"
+            f"![GitHub Space Shooter]({relative_gif_path})\n"
             f"{match.group(3)}"
         )
 
     new_content, count = pattern.subn(repl, content, count=1)
-    if count == 0 or new_content == content:
+    if count == 0 or new_content == content: 
         return
 
-    try:
-        with open("README.md", "w", encoding="utf-8") as f:
+    try: 
+        with open(readme_path, "w", encoding="utf-8") as f:
             f.write(new_content)
-        console.print("[green]✓[/green] Updated README.md shooter section")
-    except OSError:
+        console.print(f"[green]✓[/green] Updated {os.path.relpath(readme_path)} shooter section")
+    except OSError: 
         return
+
+
+def _find_readme() -> str | None:
+    """Find README. md by searching current directory and up to 3 parent levels."""
+    current = os.path.abspath(".")
+    
+    for _ in range(4):
+        readme_path = os.path.join(current, "README. md")
+        if os.path.isfile(readme_path):
+            return readme_path
+        
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    
+    return None
 
 
 app = typer.Typer()
