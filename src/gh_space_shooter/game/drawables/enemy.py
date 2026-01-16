@@ -1,11 +1,15 @@
 """Enemy objects representing contribution graph data."""
 
+import random # Import random
 from typing import TYPE_CHECKING
 
 from PIL import ImageDraw
 
 from .drawable import Drawable
 from .explosion import Explosion
+from .power_up import RapidFirePowerUp # Import RapidFirePowerUp
+from ...constants import POWER_UP_DROP_CHANCE_ENEMY # Import drop chance
+
 
 if TYPE_CHECKING:
     from ..game_state import GameState
@@ -41,6 +45,11 @@ class Enemy(Drawable):
             explosion = Explosion(self.x, self.y, "large", self.game_state)
             self.game_state.explosions.append(explosion)
             self.game_state.enemies.remove(self)
+
+            # Randomly drop a power-up
+            if random.random() < POWER_UP_DROP_CHANCE_ENEMY:
+                power_up = RapidFirePowerUp(self.x, self.y, self.game_state)
+                self.game_state.power_ups.append(power_up)
 
     def animate(self, delta_time: float) -> None:
         """Update enemy state for next frame (enemies don't animate currently)."""
