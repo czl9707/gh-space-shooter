@@ -219,7 +219,7 @@ def _maybe_update_readme_with_gif(gif_path: str) -> None:
         return
 
     pattern = re.compile(
-        r"(<!--START_SECTION: shooter-->)(.*?)(<!--END_SECTION:shooter-->)",
+        r"(<!--START_SECTION:shooter-->)(.*?)(<!--END_SECTION:shooter-->)",
         flags=re.DOTALL,
     )
     
