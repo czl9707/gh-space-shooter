@@ -2,7 +2,9 @@
 
 import json
 import os
+import re
 import sys
+from pathlib import Path
 
 import typer
 from dotenv import load_dotenv
@@ -198,8 +200,57 @@ def _generate_gif(
             f.write(buffer.getvalue())
 
         console.print(f"[green]✓[/green] GIF saved to {file_path}")
+
+        # if README.md has the shooter section markers, insert the image.
+        _maybe_update_readme_with_gif(file_path)
     except Exception as e:
         raise CLIError(f"Failed to generate GIF: {e}")
+
+
+def _maybe_update_readme_with_gif(gif_path: str) -> None:
+    """If README.md at repo root contains shooter markers, replace the section with an image tag."""
+
+    repo_root = Path(os.getenv("GITHUB_WORKSPACE") or os.getcwd()).resolve()
+    readme_path = repo_root / "README.md"
+    if not readme_path.is_file():
+        return
+
+    try:
+        content = readme_path.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    pattern = re.compile(
+        r"(<!--START_SECTION:shooter-->)(.*?)(<!--END_SECTION:shooter-->)",
+        flags=re.DOTALL,
+    )
+
+    match = pattern.search(content)
+    if not match:
+        return
+
+    # The GIF can be anywhere; link it relative to the repo root and normalize for Markdown.
+    try:
+        gif_rel = os.path.relpath(Path(gif_path).resolve(), start=repo_root)
+    except ValueError:
+        gif_rel = Path(gif_path).name
+
+    gif_rel = Path(gif_rel).as_posix()
+    replacement = (
+        f"{match.group(1)}\n"
+        f"![GitHub Space Shooter]({gif_rel})\n"
+        f"{match.group(3)}"
+    )
+
+    new_content = content[: match.start()] + replacement + content[match.end() :]
+    if new_content == content:
+        return
+
+    try:
+        readme_path.write_text(new_content, encoding="utf-8")
+        console.print(f"[green]✓[/green] Updated {readme_path.name} shooter section")
+    except OSError:
+        return
 
 
 app = typer.Typer()

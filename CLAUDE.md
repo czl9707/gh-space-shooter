@@ -56,6 +56,7 @@ This is a CLI tool that transforms GitHub contribution graphs into animated spac
 ### Strategy Pattern
 
 Strategies (`game/strategies/`) define how the ship clears enemies:
+
 - `BaseStrategy` - Abstract base defining `generate_actions(game_state) -> Iterator[Action]`
 - `ColumnStrategy` - Clears enemies column by column (left to right)
 - `RowStrategy` - Clears enemies row by row (top to bottom)
@@ -66,6 +67,7 @@ Strategies yield `Action(x, shoot)` objects. The Animator processes these: movin
 ### Drawable System
 
 All game objects inherit from `Drawable` (`game/drawables/drawable.py`):
+
 - `animate(delta_time)` - Update state (position, cooldowns, particles)
 - `draw(draw, context)` - Render to PIL ImageDraw
 
@@ -76,6 +78,7 @@ The `RenderContext` (`game/render_context.py`) holds theming (colors, cell sizes
 ### Animation Loop
 
 In `Animator._generate_frames()`:
+
 1. Strategy yields next action
 2. Ship moves to target x position (animate frames until arrived)
 3. Ship shoots if action.shoot (animate frames for bullet travel + explosions)
