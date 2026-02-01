@@ -1,56 +1,38 @@
-name: Publish to PyPI
+name: Generate Space Shooter
 
 on:
   workflow_dispatch:
-    inputs:
-      release_type:
-        description: "Release Type"
-        required: true
-        type: choice
-        default: "patch"
-        options:
-        - major
-        - minor
-        - patch
-
-env:
-  PYTHON_LATEST: 3.12
+  schedule:
+    - cron: "0 0 * * *"   # runs once daily (UTC)
 
 jobs:
-  build:
-    name: Publish
+  generate:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Install Python ${{ env.PYTHON_LATEST }}
-      run: uv python install ${{ env.PYTHON_LATEST }}
+      - name: Install dependencies
+        run: |
+          pip install -e .
 
-    - name: Bump version
-      id: bump
-      uses: callowayproject/bump-my-version@master
-      env:
-        BUMPVERSION_TAG: "false"
-      with:
-        args: ${{ inputs.release_type }}
-        github-token: ${{ secrets.GH_TOKEN }}
-    
-    - name: Build
-      run: uv build
+      - name: Run space shooter generator
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_USERNAME: ${{ secrets.GH_USERNAME }}
+        run: |
+          python -m gh_space_shooter.cli
 
-    - name: Publish
-      run: uv publish --token ${{ secrets.PYPI_API_TOKEN }}
-
-    - name: GitHub Release PIP v${{ steps.bump.outputs.current-version }}
-      uses: ncipollo/release-action@v1
-      with:
-        name: gh-space-shooter pypi v${{ steps.bump.outputs.current-version }}
-        tag: v${{ steps.bump.outputs.current-version }}
-        body: "Automated release of pypi version v${{ steps.bump.outputs.current-version }}"
-        artifacts: dist/*
-        token: ${{ secrets.GH_TOKEN }}
-        generateReleaseNotes: true
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: update space shooter animation" || echo "No changes"
+          git push
