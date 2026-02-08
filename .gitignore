@@ -21,3 +21,6 @@ wheels/
 # Test output
 my-contributions.json
 .vercel
+
+# Git worktrees
+.worktrees/
