@@ -3,7 +3,7 @@
 import pytest
 from PIL import Image
 from gh_space_shooter.output.base import OutputProvider
-from gh_space_shooter.output import GifOutputProvider, WebPOutputProvider
+from gh_space_shooter.output import GifOutputProvider, WebPOutputProvider, resolve_output_provider
 
 
 def test_output_provider_is_abstract():
@@ -69,3 +69,36 @@ def test_webp_provider_empty_frames():
     result = provider.encode(iter([]))
 
     assert result == b""
+
+
+def test_resolve_gif_provider():
+    """resolve_output_provider should return GifOutputProvider for .gif files."""
+    provider = resolve_output_provider("output.gif", fps=30, watermark=True)
+
+    assert isinstance(provider, GifOutputProvider)
+    assert provider.fps == 30
+    assert provider.watermark is True
+
+
+def test_resolve_webp_provider():
+    """resolve_output_provider should return WebPOutputProvider for .webp files."""
+    provider = resolve_output_provider("output.webp", fps=25)
+
+    assert isinstance(provider, WebPOutputProvider)
+    assert provider.fps == 25
+    assert provider.watermark is False
+
+
+def test_resolve_unsupported_format():
+    """resolve_output_provider should raise ValueError for unsupported formats."""
+    with pytest.raises(ValueError, match="Unsupported output format"):
+        resolve_output_provider("output.mp4", fps=30)
+
+
+def test_resolve_case_insensitive():
+    """resolve_output_provider should handle uppercase extensions."""
+    provider = resolve_output_provider("output.GIF", fps=30)
+    assert isinstance(provider, GifOutputProvider)
+
+    provider = resolve_output_provider("output.WEBP", fps=30)
+    assert isinstance(provider, WebPOutputProvider)
