@@ -78,3 +78,19 @@ def test_append_mode_when_no_marker():
         assert len(lines) == 2
         assert lines[0] == "# My Contribution Graph"
         assert lines[1].startswith("data:image/webp;base64,")
+
+
+def test_empty_frames_writes_empty_string():
+    """Provider should write empty string when no frames provided."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = os.path.join(tmpdir, "output.txt")
+
+        provider = WebpDataUrlOutputProvider(output_path)
+        result = provider.encode(iter([]), frame_duration=100)
+
+        # File should exist with empty content
+        assert os.path.exists(output_path)
+        with open(output_path, "r") as f:
+            content = f.read()
+        assert content == "\n"  # Empty URL + newline
+        assert result == b"\n"  # Returns newline as bytes
