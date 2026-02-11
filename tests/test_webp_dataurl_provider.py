@@ -94,3 +94,29 @@ def test_empty_frames_writes_empty_string():
             content = f.read()
         assert content == "\n"  # Empty URL + newline
         assert result == b"\n"  # Returns newline as bytes
+
+
+def test_multiple_markers_only_first_replaced():
+    """Provider should only replace first marker occurrence."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = os.path.join(tmpdir, "output.txt")
+
+        # Create file with multiple markers
+        with open(output_path, "w") as f:
+            f.write("<!-- space-shooter -->\n")
+            f.write("<!-- space-shooter -->\n")
+            f.write("more content\n")
+
+        provider = WebpDataUrlOutputProvider(output_path)
+        frames = [create_test_frame("red")]
+        provider.encode(iter(frames), frame_duration=100)
+
+        # Verify only first marker replaced
+        with open(output_path, "r") as f:
+            content = f.read()
+
+        lines = content.splitlines()
+        assert len(lines) == 3
+        assert lines[0].startswith("data:image/webp;base64,")
+        assert lines[1] == "<!-- space-shooter -->"  # Second marker untouched
+        assert lines[2] == "more content"
