@@ -35,6 +35,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           output-path: 'game.gif'
+          # write-dataurl-to: 'README.md'   # for dataurl generation.
           strategy: 'random'
 ```
 
@@ -47,7 +48,6 @@ Then display it in your README:
 - `github-token` (required): GitHub token for fetching contributions
 - `username` (optional): Username to generate game for (defaults to repo owner)
 - `output-path` (optional): Where to save the animation, supports `.gif` or `.webp` (default: `gh-space-shooter.gif`)
-*'*-write-dataurl-to (optional): Write WebP as HTML  data URL to text file'
 - `strategy` (optional): Attack pattern - `column`, `row`, or `random` (default: `random`)
 - `fps` (optional): Frames per second for the animation (default: `40`)
 - `write-dataurl-to` (optional): Write WebP as HTML `<img>` data URL to text file
@@ -153,8 +153,8 @@ gh-space-shooter torvalds -wdt README.md
 ## About Me
 ```
 
-The provider will:
-- **Create new files** with content wrapped in section markers
+This will:
+- **Create new files** with content wrapped in section markers, if file not present.
 - **Replace content** between existing markers (preserving surrounding content)
 - **Raise error** if markers are missing or in wrong order (no silent fallback)
 
