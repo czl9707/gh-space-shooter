@@ -131,8 +131,8 @@ def _tl_compose_svg_markup(
     ship_fill = _tl_hex(context.ship_color)
 
     parts: list[str] = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<?xml version="1.0"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">',
         "<defs>",
         *([f"<style>{palette_css}</style>"] if palette_css else []),
         f'<g id="b">{"".join(_tl_bullet_shape_elements(context))}</g>',
@@ -258,8 +258,9 @@ def _tl_render_star_track(
         f'{_tl_key_times_attr(visibility_times, total_duration_ms)} '
         f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
     )
+    initial_opacity = _tl_initial_opacity_attr(visibility_values[0])
     inline_parts = [
-        f'<use href="#{symbol_id}" opacity="{_tl_num(visibility_values[0])}" '
+        f'<use href="#{symbol_id}"{initial_opacity} '
         f'transform="{start_transform}">'
     ]
     inline_parts.append(animate_transform)
@@ -267,7 +268,7 @@ def _tl_render_star_track(
     inline_parts.append("</use>")
     inline_markup = "".join(inline_parts)
     grouped_markup = (
-        f'<g opacity="{_tl_num(visibility_values[0])}" transform="{start_transform}">'
+        f'<g{initial_opacity} transform="{start_transform}">'
         f'<use href="#{symbol_id}"/>'
         f"{animate_transform}{visibility_animate}</g>"
     )
@@ -368,11 +369,11 @@ def _tl_enemy_elements(
         if grouping == "column":
             group_offset, _ = context.get_cell_position(group_cell, 0)
             axis_attr = "y"
-            group_start = f'<g transform="translate({_tl_num(group_offset)} 0)">'
+            group_transform = f'translate({_tl_num(group_offset)} 0)'
         else:
             _, group_offset = context.get_cell_position(0, group_cell)
             axis_attr = "x"
-            group_start = f'<g transform="translate(0 {_tl_num(group_offset)})">'
+            group_transform = f'translate(0 {_tl_num(group_offset)})'
 
         group_parts: list[str] = []
         for enemy_id in sorted(grouped_enemy_ids[group_cell]):
@@ -446,7 +447,7 @@ def _tl_enemy_elements(
             group_parts.append("".join(rect_parts))
 
         if group_parts:
-            elements.append(f'{group_start}{"".join(group_parts)}</g>')
+            elements.append(f'<g transform="{group_transform}">{"".join(group_parts)}</g>')
 
     return elements
 
@@ -515,14 +516,15 @@ def _tl_bullet_elements(
         )
 
         point_animate = _tl_point_animate_transform(track_points, track_times, total_duration_ms)
+        initial_opacity = _tl_initial_opacity_attr(opacity_values[0])
         inline_markup = (
-            f'<use href="#b" opacity="{_tl_num(opacity_values[0])}" '
+            f'<use href="#b"{initial_opacity} '
             f'transform="translate({_tl_num(track_points[0][0])} {_tl_num(track_points[0][1])})">'
             f"{point_animate}"
             f"{opacity_animate}</use>"
         )
         grouped_markup = (
-            f'<g opacity="{_tl_num(opacity_values[0])}" '
+            f'<g{initial_opacity} '
             f'transform="translate({_tl_num(track_points[0][0])} {_tl_num(track_points[0][1])})">'
             f'<use href="#b"/>'
             f"{point_animate}"
@@ -825,8 +827,9 @@ def _tl_explosion_elements(
             f'{_tl_key_times_attr(opacity_times, total_duration_ms)} '
             f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
         )
+        initial_opacity = _tl_initial_opacity_attr(opacity_values[0])
         elements.append(
-            f'<g opacity="{_tl_num(opacity_values[0])}" '
+            f'<g{initial_opacity} '
             f'transform="translate({_tl_num(center_values[0][0])} {_tl_num(center_values[0][1])})">'
             f'{_tl_point_animate_transform(center_values, center_times, total_duration_ms, discrete=True)}'
             f"{opacity_animate}{path_markup}</g>"
@@ -877,6 +880,12 @@ def _tl_transition_forced_indices(values: list[float], threshold: float = 0.5) -
         forced.add(index - 1)
         forced.add(index)
     return forced
+
+
+def _tl_initial_opacity_attr(value: float) -> str:
+    if abs(value - 1.0) < 1e-9:
+        return ""
+    return f' opacity="{_tl_num(value)}"'
 
 
 def _tl_has_distinct_floats(values: list[float], eps: float = 1e-9) -> bool:
@@ -978,38 +987,40 @@ def _tl_bullet_shape_elements(context: RenderContext) -> list[str]:
     bullet_rgb = context.bullet_color
     background_rgb = context.background_color
     step = context.cell_size + context.cell_spacing
-    shapes: list[str] = []
+    rects_by_fill: dict[str, list[tuple[int, int, int, int]]] = {}
+
+    def _add_rect(cx: float, cy: float, rx: float, ry: float, fill: str) -> None:
+        x1, y1 = cx - rx, cy - ry
+        x2, y2 = cx + rx, cy + ry
+        left = math.floor(min(x1, x2))
+        top = math.floor(min(y1, y2))
+        right = math.floor(max(x1, x2))
+        bottom = math.floor(max(y1, y2))
+        w = max(1, right - left + 1)
+        h = max(1, bottom - top + 1)
+        rects_by_fill.setdefault(fill, []).append((left, top, w, h))
 
     for i in range(BULLET_TRAILING_LENGTH):
         trail_y = (i + 1) * BULLET_TRAIL_SPACING * step
         fade = (i + 1) / BULLET_TRAILING_LENGTH / 2
         fill = _tl_blend_hex_over_background(bullet_rgb, background_rgb, fade)
-        shapes.append(_tl_center_rect(0.0, trail_y, 0.5, 4.0, fill))
+        _add_rect(0.0, trail_y, 0.5, 4.0, fill)
 
     for offset, fade in [(0.6, 0.3), (0.4, 0.4), (0.2, 0.5), (0.0, 1.0)]:
         fill = _tl_blend_hex_over_background(bullet_rgb, background_rgb, fade)
-        shapes.append(_tl_center_rect(0.0, 0.0, 0.5 + offset, 4.0 + offset, fill))
+        _add_rect(0.0, 0.0, 0.5 + offset, 4.0 + offset, fill)
+
+    shapes: list[str] = []
+    for fill, rects in rects_by_fill.items():
+        if len(rects) == 1:
+            x, y, w, h = rects[0]
+            shapes.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}"/>'
+            )
+        else:
+            d = "".join(f"M{x} {y}h{w}v{h}h-{w}z" for x, y, w, h in rects)
+            shapes.append(f'<path d="{d}" fill="{fill}"/>')
     return shapes
-
-
-def _tl_center_rect(
-    cx: float, cy: float, rx: float, ry: float, fill: str
-) -> str:
-    x1 = cx - rx
-    y1 = cy - ry
-    x2 = cx + rx
-    y2 = cy + ry
-    left = math.floor(min(x1, x2))
-    top = math.floor(min(y1, y2))
-    right = math.floor(max(x1, x2))
-    bottom = math.floor(max(y1, y2))
-    width = max(1, right - left + 1)
-    height = max(1, bottom - top + 1)
-    return (
-        f'<rect x="{left}" y="{top}" '
-        f'width="{width}" height="{height}" '
-        f'fill="{fill}"/>'
-    )
 
 
 def _tl_ship_symbol_elements(context: RenderContext) -> list[str]:
@@ -1074,7 +1085,7 @@ def _tl_ship_symbol_elements(context: RenderContext) -> list[str]:
     )
 
     pixels = img.load()
-    elements: list[str] = []
+    runs_by_alpha: dict[int, list[tuple[int, int, int]]] = {}
     for y in range(canvas_h):
         x = 0
         while x < canvas_w:
@@ -1093,16 +1104,16 @@ def _tl_ship_symbol_elements(context: RenderContext) -> list[str]:
             run_width = x - start
             local_x = start - anchor_x
             local_y = y - anchor_y
+            runs_by_alpha.setdefault(alpha, []).append((local_x, local_y, run_width))
 
-            if alpha >= 255:
-                elements.append(
-                    f'<rect x="{local_x}" y="{local_y}" width="{run_width}" height="1"/>'
-                )
-            else:
-                elements.append(
-                    f'<rect x="{local_x}" y="{local_y}" width="{run_width}" height="1" '
-                    f'fill-opacity="{_tl_num(alpha / 255)}"/>'
-                )
+    elements: list[str] = []
+    for alpha in sorted(runs_by_alpha, reverse=True):
+        runs = runs_by_alpha[alpha]
+        d = "".join(f"M{lx} {ly}h{w}v1h-{w}z" for lx, ly, w in runs)
+        if alpha >= 255:
+            elements.append(f'<path d="{d}"/>')
+        else:
+            elements.append(f'<path d="{d}" fill-opacity="{_tl_num(alpha / 255)}"/>')
     return elements
 
 
