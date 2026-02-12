@@ -24,6 +24,10 @@ def _tl_compress_points_with_forced(
         if i in forced_indices:
             keep.append(i)
             continue
+        # Fast path: if previous, current, and next are identical, skip
+        pi = points[i]
+        if pi == points[i - 1] and pi == points[i + 1]:
+            continue
         t0, t1, t2 = times[i - 1], times[i], times[i + 1]
         if t1 == t0 or t2 == t1:
             keep.append(i)
@@ -133,7 +137,7 @@ def _tl_compress_scalar_track(
         if time_ms == compact_times[-1]:
             compact_values[-1] = value
             continue
-        if abs(value - compact_values[-1]) <= eps:
+        if value == compact_values[-1] or abs(value - compact_values[-1]) <= eps:
             continue
         compact_times.append(time_ms)
         compact_values.append(value)

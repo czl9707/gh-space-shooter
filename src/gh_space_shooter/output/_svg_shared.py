@@ -1,5 +1,7 @@
 """Shared helpers for SVG output encoding."""
 
+from functools import lru_cache
+
 
 def _to_compact_name(value: int) -> str:
     digits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -37,10 +39,12 @@ def _minify_numeric(value: str | None) -> str:
     return text or "0"
 
 
+@lru_cache(maxsize=256)
 def _tl_hex(rgb: tuple[int, int, int]) -> str:
     return _short_hex(f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}")
 
 
+@lru_cache(maxsize=8192)
 def _tl_num(value: float) -> str:
     if isinstance(value, int):
         return str(value)
@@ -54,6 +58,7 @@ def _tl_num(value: float) -> str:
     return text or "0"
 
 
+@lru_cache(maxsize=8192)
 def _tl_num_key_time(value: float) -> str:
     if isinstance(value, int):
         return str(value)
