@@ -13,14 +13,14 @@ _MARKER = "<!-- space-shooter -->"
 
 
 class WebpDataUrlOutputProvider(OutputProvider):
-    """Output provider that generates WebP as a data URL and writes to a text file."""
+    """Output provider that generates WebP as a data URL and writes an HTML img tag to a file."""
 
     def __init__(self, output_path: str):
         """
         Initialize the provider with an output file path.
 
         Args:
-            output_path: Path to the text file where the data URL will be written
+            output_path: Path to the text file where the HTML img tag will be written
         """
         super().__init__(output_path)
 
@@ -64,7 +64,7 @@ class WebpDataUrlOutputProvider(OutputProvider):
 
     def write(self, data: bytes) -> None:
         """
-        Write data URL to file with injection or append mode.
+        Write data URL to file as an HTML img tag with injection or append mode.
 
         This handles text mode properly with newlines.
 
@@ -72,11 +72,13 @@ class WebpDataUrlOutputProvider(OutputProvider):
             data: Data URL as bytes (will be decoded as UTF-8 text)
         """
         data_url = data.decode("utf-8")
+        # Wrap in HTML img tag
+        img_tag = f'<img src="{data_url}" />'
 
         # Try to create new file exclusively (avoids TOCTOU race condition)
         try:
             with open(self.path, "x") as f:
-                f.write(data_url + "\n")
+                f.write(img_tag + "\n")
             return
         except FileExistsError:
             # File exists - read contents
@@ -89,14 +91,14 @@ class WebpDataUrlOutputProvider(OutputProvider):
             lines = content.splitlines(keepends=True)
             for i, line in enumerate(lines):
                 if _MARKER in line:
-                    lines[i] = data_url + "\n"
+                    lines[i] = img_tag + "\n"
                     break
             content = "".join(lines)
         else:
             # Append mode: add to end
             if content and not content.endswith("\n"):
                 content += "\n"
-            content += data_url + "\n"
+            content += img_tag + "\n"
 
         # Write back
         with open(self.path, "w") as f:

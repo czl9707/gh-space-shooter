@@ -14,7 +14,7 @@ def create_test_frame(color="red"):
 
 
 def test_provider_creates_new_file():
-    """Provider should create file and write data URL when file doesn't exist."""
+    """Provider should create file and write HTML img tag when file doesn't exist."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "output.txt")
         provider = WebpDataUrlOutputProvider(output_path)
@@ -23,17 +23,16 @@ def test_provider_creates_new_file():
         data = provider.encode(iter(frames), frame_duration=100)
         provider.write(data)
 
-        # File should exist and contain data URL
+        # File should exist and contain HTML img tag
         assert os.path.exists(output_path)
         with open(output_path, "r") as f:
             content = f.read()
-        assert content.startswith("data:image/webp;base64,")
-        # write() adds a newline, so content ends with \n but data doesn't
-        assert content == data.decode("utf-8") + "\n"
+        assert content.startswith('<img src="data:image/webp;base64,')
+        assert content.endswith('" />\n')
 
 
 def test_injection_mode_replaces_marker_line():
-    """Provider should replace line containing <!-- space-shooter --> with data URL."""
+    """Provider should replace line containing <!-- space-shooter --> with HTML img tag."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "output.txt")
 
@@ -55,12 +54,13 @@ def test_injection_mode_replaces_marker_line():
         lines = content.splitlines()
         assert len(lines) == 3
         assert lines[0] == "# My Contribution Graph"
-        assert lines[1].startswith("data:image/webp;base64,")
+        assert lines[1].startswith('<img src="data:image/webp;base64,')
+        assert lines[1].endswith('" />')
         assert lines[2] == "## Other content"
 
 
 def test_append_mode_when_no_marker():
-    """Provider should append data URL when no marker found."""
+    """Provider should append HTML img tag when no marker found."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "output.txt")
 
@@ -80,11 +80,12 @@ def test_append_mode_when_no_marker():
         lines = content.splitlines()
         assert len(lines) == 2
         assert lines[0] == "# My Contribution Graph"
-        assert lines[1].startswith("data:image/webp;base64,")
+        assert lines[1].startswith('<img src="data:image/webp;base64,')
+        assert lines[1].endswith('" />')
 
 
-def test_empty_frames_writes_empty_string():
-    """Provider should write empty string when no frames provided."""
+def test_empty_frames_writes_empty_img_tag():
+    """Provider should write empty img tag when no frames provided."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "output.txt")
 
@@ -92,12 +93,12 @@ def test_empty_frames_writes_empty_string():
         data = provider.encode(iter([]), frame_duration=100)
         provider.write(data)
 
-        # File should exist with empty content
+        # File should exist with empty img tag
         assert os.path.exists(output_path)
         with open(output_path, "r") as f:
             content = f.read()
-        # write() adds a newline to the empty data
-        assert content == "\n"
+        # write() wraps empty data URL in img tag with newline
+        assert content == '<img src="" />\n'
         # encode() returns empty bytes
         assert data == b""
 
@@ -124,6 +125,7 @@ def test_multiple_markers_only_first_replaced():
 
         lines = content.splitlines()
         assert len(lines) == 3
-        assert lines[0].startswith("data:image/webp;base64,")
+        assert lines[0].startswith('<img src="data:image/webp;base64,')
+        assert lines[0].endswith('" />')
         assert lines[1] == "<!-- space-shooter -->"  # Second marker untouched
         assert lines[2] == "more content"

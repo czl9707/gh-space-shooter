@@ -56,4 +56,6 @@ def test_dataurl_flag_works():
         with open(output_file, "r") as f:
             content = f.read()
 
-        assert content.startswith("data:image/webp;base64,")
+        # Output should be an HTML img tag with the data URL
+        assert content.startswith('<img src="data:image/webp;base64,')
+        assert content.endswith('" />\n')
