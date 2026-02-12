@@ -1,15 +1,10 @@
 """GitHub API client for fetching contribution graph data."""
 
-from datetime import datetime
 from typing import TypedDict
 
 import httpx
-from dotenv import load_dotenv
 
 from .constants import NUM_WEEKS
-
-# Load environment variables from .env file
-load_dotenv()
 
 
 class ContributionDay(TypedDict):
@@ -168,3 +163,9 @@ class GitHubClient:
 
     def _contribution_level_to_int(self, level: str) -> int:
         return self.LEVEL_MAP.get(level, 0)
+
+
+def fetch_contribution_data(username: str, token: str) -> ContributionData:
+    """Fetch contribution graph data using a short-lived API client."""
+    with GitHubClient(token) as client:
+        return client.get_contribution_graph(username)

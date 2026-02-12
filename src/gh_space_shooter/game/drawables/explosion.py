@@ -24,7 +24,15 @@ if TYPE_CHECKING:
 class Explosion(Drawable):
     """Particle explosion effect that expands and fades out."""
 
-    def __init__(self, x: float, y: float, size: Literal["small", "large"], game_state: "GameState"):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        size: Literal["small", "large"],
+        game_state: "GameState",
+        explosion_id: int = -1,
+        rng: random.Random | None = None,
+    ):
         """
         Initialize an explosion.
 
@@ -36,12 +44,15 @@ class Explosion(Drawable):
         """
         self.x = x
         self.y = y
+        self.size = size
+        self.explosion_id = explosion_id
         self.game_state = game_state
+        self.rng = rng or random.Random()
         self.elapsed_time = 0.0  # Seconds elapsed since explosion started
         self.duration = EXPLOSION_DURATION_SMALL if size == "small" else EXPLOSION_DURATION_LARGE
         self.max_radius = EXPLOSION_MAX_RADIUS_SMALL if size == "small" else EXPLOSION_MAX_RADIUS_LARGE
         self.particle_count = EXPLOSION_PARTICLE_COUNT_SMALL if size == "small" else EXPLOSION_PARTICLE_COUNT_LARGE
-        self.particle_angles = [random.uniform(0, 2 * math.pi) for _ in range(self.particle_count)]
+        self.particle_angles = [self.rng.uniform(0, 2 * math.pi) for _ in range(self.particle_count)]
 
     def animate(self, delta_time: float) -> None:
         """Progress the explosion animation and remove when complete.
@@ -51,7 +62,7 @@ class Explosion(Drawable):
         """
         self.elapsed_time += delta_time
         if self.elapsed_time >= self.duration:
-            self.game_state.explosions.remove(self)
+            self.game_state.remove_explosion(self)
 
     def draw(self, draw: ImageDraw.ImageDraw, context: "RenderContext") -> None:
         """Draw expanding particle explosion with fade effect."""

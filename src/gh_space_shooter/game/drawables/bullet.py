@@ -6,18 +6,19 @@ from PIL import ImageDraw
 
 from ...constants import BULLET_SPEED, BULLET_TRAILING_LENGTH, BULLET_TRAIL_SPACING, SHIP_POSITION_Y
 from .drawable import Drawable
-from .explosion import Explosion
 
 if TYPE_CHECKING:
     from .enemy import Enemy
     from ..game_state import GameState
     from ..render_context import RenderContext
 
+OFFSCREEN_REMOVE_Y = -10.0
+
 
 class Bullet(Drawable):
     """Represents a bullet fired by the ship."""
 
-    def __init__(self, x: int, game_state: "GameState"):
+    def __init__(self, x: int, game_state: "GameState", bullet_id: int = -1):
         """
         Initialize a bullet at ship's firing position.
 
@@ -28,7 +29,7 @@ class Bullet(Drawable):
         self.x = x
         self.y: float = SHIP_POSITION_Y - 1
         self.game_state = game_state
-
+        self.bullet_id = bullet_id
 
     def _check_collision(self) -> "Enemy | None":
         """Check if bullet has hit an enemy at its current position."""
@@ -46,12 +47,12 @@ class Bullet(Drawable):
         self.y -= BULLET_SPEED * delta_time
         hit_enemy = self._check_collision()
         if hit_enemy:
-            explosion = Explosion(self.x, self.y, "small", self.game_state)
-            self.game_state.explosions.append(explosion)
+            self.game_state.create_explosion(self.x, self.y, "small")
             hit_enemy.take_damage()
-            self.game_state.bullets.remove(self)
-        if self.y < -10:  # magic number to remove off-screen bullets
-            self.game_state.bullets.remove(self)
+            self._remove_from_state()
+            return
+        if self.y < OFFSCREEN_REMOVE_Y:
+            self._remove_from_state()
 
     def draw(self, draw: ImageDraw.ImageDraw, context: "RenderContext") -> None:
         """Draw the bullet with trailing tail effect."""
@@ -72,7 +73,7 @@ class Bullet(Drawable):
         context: "RenderContext",
         position: tuple[float, float],
         fade_factor: float = 1,
-        offset: float = 0
+        offset: float = 0,
     ) -> None:
         x, y = context.get_cell_position(position[0], position[1])
         x += context.cell_size // 2
@@ -84,3 +85,6 @@ class Bullet(Drawable):
             [x - r_x, y - r_y, x + r_x, y + r_y],
             fill=(*context.bullet_color, int(fade_factor * 255)),
         )
+
+    def _remove_from_state(self) -> None:
+        self.game_state.remove_bullet(self)

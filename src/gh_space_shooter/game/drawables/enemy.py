@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from PIL import ImageDraw
 
 from .drawable import Drawable
-from .explosion import Explosion
 
 if TYPE_CHECKING:
     from ..game_state import GameState
@@ -29,6 +28,7 @@ class Enemy(Drawable):
         self.y = y
         self.health = health
         self.game_state = game_state
+        self.enemy_id = f"{x}:{y}"
 
     def take_damage(self) -> None:
         """
@@ -38,9 +38,8 @@ class Enemy(Drawable):
         self.health -= 1
         if self.health <= 0:
             # Create large explosion with green color (enemy color)
-            explosion = Explosion(self.x, self.y, "large", self.game_state)
-            self.game_state.explosions.append(explosion)
-            self.game_state.enemies.remove(self)
+            self.game_state.create_explosion(self.x, self.y, "large")
+            self.game_state.remove_enemy(self)
 
     def animate(self, delta_time: float) -> None:
         """Update enemy state for next frame (enemies don't animate currently)."""

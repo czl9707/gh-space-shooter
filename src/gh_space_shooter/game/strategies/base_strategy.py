@@ -1,25 +1,19 @@
 """Base strategy interface for enemy clearing strategies."""
 
+import random
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
     from ..game_state import GameState
 
 
+@dataclass(frozen=True, slots=True)
 class Action:
     """Represents a single action in the game."""
-
-    def __init__(self, x: int, shoot: bool = False):
-        """
-        Initialize an action.
-
-        Args:
-            x: Week position (0-51) where ship should move
-            shoot: Whether to shoot at this position
-        """
-        self.x = x
-        self.shoot = shoot
+    x: int
+    shoot: bool = False
 
     def __repr__(self) -> str:
         action_type = "SHOOT" if self.shoot else "MOVE"
@@ -28,6 +22,10 @@ class Action:
 
 class BaseStrategy(ABC):
     """Abstract base class for enemy clearing strategies."""
+
+    def set_rng(self, rng: random.Random) -> None:
+        """Inject RNG source for deterministic simulations."""
+        del rng
 
     @abstractmethod
     def generate_actions(self, game_state: "GameState") -> Iterator[Action]:
@@ -40,4 +38,4 @@ class BaseStrategy(ABC):
         Yields:
             Action objects representing ship movements and shots
         """
-        pass
+        raise NotImplementedError

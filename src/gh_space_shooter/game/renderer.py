@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..constants import NUM_WEEKS, SHIP_POSITION_Y
 from .game_state import GameState
 from .render_context import RenderContext
+from .scene import draw_scene
 
 WATERMARK_TEXT = "by czl9707/gh-space-shooter"
 
@@ -42,7 +43,7 @@ class Renderer:
         # Draw game state
         overlay = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay, "RGBA")
-        self.game_state.draw(draw, self.context)
+        draw_scene(self.game_state, draw, self.context)
 
         # Draw watermark if enabled
         if self.watermark:
