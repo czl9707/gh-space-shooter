@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- SEO Meta Tags -->
-    <meta name="description" content="Transform your GitHub contribution graph into an animated space shooter GIF. Choose from different animation strategies and share your coding year as a retro game.">
+    <meta name="description" content="Transform your GitHub contribution graph into an animated space shooter experience. Choose strategy and output format, then share your coding year as a retro game.">
     <meta name="keywords" content="github, contribution graph, space shooter, gif generator, github visualization, coding stats, github profile">
     <meta name="author" content="Zane Chen">
     <meta name="robots" content="index, follow">
@@ -15,7 +15,7 @@
 
     <!-- Open Graph Meta Tags -->
     <meta property="og:title" content="GitHub Space Shooter - Visualize Your Contributions">
-    <meta property="og:description" content="Transform your GitHub contribution graph into an animated space shooter GIF. Choose from different animation strategies and share your coding year as a retro game.">
+    <meta property="og:description" content="Transform your GitHub contribution graph into an animated space shooter experience. Choose strategy and output format, then share your coding year as a retro game.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://your-domain.com/">
     <meta property="og:image" content="/og-image.gif">
@@ -28,7 +28,7 @@
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="GitHub Space Shooter - Visualize Your Contributions">
-    <meta name="twitter:description" content="Transform your GitHub contribution graph into an animated space shooter GIF. Choose animation strategies and share your coding year as a retro game.">
+    <meta name="twitter:description" content="Transform your GitHub contribution graph into an animated space shooter experience. Choose strategy and output format, then share your coding year as a retro game.">
     <meta name="twitter:image" content="/og-image.gif">
     <meta name="twitter:image:alt" content="GitHub Space Shooter preview showing a contribution graph transformed into a space shooter game">
 
@@ -45,7 +45,7 @@
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "GitHub Space Shooter",
-      "description": "Transform your GitHub contribution graph into an animated space shooter GIF",
+      "description": "Transform your GitHub contribution graph into an animated space shooter experience",
       "url": "https://your-domain.com/",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Any",
@@ -375,7 +375,7 @@
             }
         }
 
-        /* GIF */
+        /* Animation preview */
         #gifImage {
             display: none;
 
@@ -472,19 +472,28 @@
                         <option value="row">Row</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label for="format">Output Format</label>
+                    <select id="format" name="format">
+                        <option value="gif" selected>GIF</option>
+                        <option value="webp">WebP</option>
+                        <option value="svg">SVG</option>
+                    </select>
+                </div>
             </div>
             
-            <button class="btn" id="submitBtn" onclick="generationHandler()">Generate GIF</button>
+            <button class="btn" id="submitBtn" onclick="generationHandler()">Generate Animation</button>
 
             <div id="skeleton">
-                <span>Generating your GIF... This may take a moment.</span>
+                <span>Generating your animation... This may take a moment.</span>
             </div>
-            <div id="error">Failed to generate GIF</div>
-            <img id="gifImage" alt="Space Shooter GIF">
+            <div id="error">Failed to generate animation</div>
+            <img id="gifImage" alt="Space Shooter animation preview">
             
             <div class="row actions">
                 <a id="gifImageDownload" download>
-                    <button class="btn">Download GIF</button>
+                    <button class="btn">Download Animation</button>
                 </a>
                 <button class="btn btn--secondary" onclick="shareHandler()">
                     Share
@@ -515,22 +524,27 @@
 
         let currentBlob = null;
         let currentUsername = '';
+        let currentFormat = 'gif';
 
         async function generationHandler() {
             const username = document.getElementById('username').value.trim();
             const strategy = document.getElementById('strategy').value;
+            const outputFormat = document.getElementById('format').value;
 
             if (!username) return;
 
             main.dataset.state = 'generating';
             currentUsername = username;
+            currentFormat = outputFormat;
 
             try {
-                const response = await fetch(`/api/generate?username=${encodeURIComponent(username)}&strategy=${encodeURIComponent(strategy)}`);
+                const response = await fetch(
+                    `/api/generate?username=${encodeURIComponent(username)}&strategy=${encodeURIComponent(strategy)}&format=${encodeURIComponent(outputFormat)}`
+                );
 
                 if (!response.ok) {
                     const data = await response.json();
-                    throw new Error(data.detail || 'Failed to generate GIF');
+                    throw new Error(data.detail || 'Failed to generate animation');
                 }
 
                 currentBlob = await response.blob();
@@ -538,7 +552,7 @@
 
                 gifImage.src = url;
                 downloadLink.href = url;
-                downloadLink.download = `${username}-space-shooter.gif`;
+                downloadLink.download = `${username}-space-shooter.${outputFormat}`;
                 main.dataset.state = 'success';
             } catch (err) {
                 error.textContent = err.message;
@@ -549,10 +563,22 @@
         async function shareHandler() {
             if (!currentBlob) return;
 
+            const mimeTypeByFormat = {
+                gif: 'image/gif',
+                webp: 'image/webp',
+                svg: 'image/svg+xml',
+            };
+
             const shareData = {
                 title: 'GitHub Space Shooter',
                 text: `Check out my GitHub contribution graph as a space shooter!`,
-                files: [new File([currentBlob], `${currentUsername}-space-shooter.gif`, { type: 'image/gif' })]
+                files: [
+                    new File(
+                        [currentBlob],
+                        `${currentUsername}-space-shooter.${currentFormat}`,
+                        { type: mimeTypeByFormat[currentFormat] ?? 'application/octet-stream' }
+                    )
+                ]
             };
 
             if (navigator.canShare && navigator.canShare(shareData)) {

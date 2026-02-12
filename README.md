@@ -95,7 +95,7 @@ pip install -e .
 
 ## CLI Usage
 
-### Generate Your Game Animation (GIF or WebP)
+### Generate Your Game Animation (GIF, WebP, or SVG)
 
 Transform your GitHub contributions into an epic space shooter!
 
@@ -107,9 +107,10 @@ gh-space-shooter <username>
 gh-space-shooter torvalds
 gh-space-shooter octocat
 
-# Specify custom output filename (GIF or WebP)
+# Specify custom output filename (GIF, WebP, or SVG)
 gh-space-shooter torvalds --output my-epic-game.gif
 gh-space-shooter torvalds -o my-game.webp
+gh-space-shooter torvalds -o my-game.svg
 
 # Choose enemy attack strategy
 gh-space-shooter torvalds --strategy row      # Enemies attack in rows
@@ -123,7 +124,7 @@ gh-space-shooter torvalds --fps 40            # Default Frame rate, Larger file 
 gh-space-shooter torvalds --max-frame 200     # Stop after 200 frames
 ```
 
-This creates an animated GIF showing:
+This creates an animated visualization showing:
 - Your contribution graph as enemies (more contributions = stronger enemies)
 - A Galaga-style spaceship battling through your coding history
 - Enemy attack patterns based on your chosen strategy
@@ -171,9 +172,11 @@ gh-space-shooter --raw-input data.json --output game.webp
 
 # Combine options
 gh-space-shooter torvalds -o game.webp -ro data.json -s column
-
 # Generate data URL with custom strategy
 gh-space-shooter torvalds -wdt README.md -s column
+
+# Generate SVG output
+gh-space-shooter torvalds -o game.svg -ro data.json -s random
 ```
 
 ### Data Format

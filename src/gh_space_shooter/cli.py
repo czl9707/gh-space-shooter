@@ -9,18 +9,24 @@ import typer
 from dotenv import load_dotenv
 from rich.console import Console
 
+from .animation_pipeline import encode_animation
 from .constants import DEFAULT_FPS
 from .console_printer import ContributionConsolePrinter
-from .game import Animator, ColumnStrategy, RandomStrategy, RowStrategy, BaseStrategy
-from .github_client import ContributionData, GitHubAPIError, GitHubClient
-from .output import resolve_output_provider
-from .output import OutputProvider, WebpDataUrlOutputProvider
+from .game.strategies import (
+    DEFAULT_STRATEGY_NAME,
+    create_strategy,
+    supported_strategy_names,
+)
+from .game.strategies.base_strategy import BaseStrategy
+from .github_client import ContributionData, GitHubAPIError, fetch_contribution_data
+from .output import WebpDataUrlOutputProvider, supported_output_formats
 
 # Load environment variables from .env file
 load_dotenv()
 
 console = Console()
 err_console = Console(stderr=True)
+SUPPORTED_OUTPUT_FORMATS_TEXT = ", ".join(supported_output_formats()).upper()
 
 
 class CLIError(Exception):
@@ -49,7 +55,7 @@ def main(
         "--output",
         "-out",
         "-o",
-        help="Generate animated visualization (GIF or WebP)",
+        help=f"Generate animated visualization ({SUPPORTED_OUTPUT_FORMATS_TEXT})",
     ),
     write_dataurl_to: str = typer.Option(
         None,
@@ -57,10 +63,10 @@ def main(
         help="Generate WebP as data URL and write to text file",
     ),
     strategy: str = typer.Option(
-        "random",
+        DEFAULT_STRATEGY_NAME,
         "--strategy",
         "-s",
-        help="Strategy for clearing enemies (column, row, random)",
+        help=f"Strategy for clearing enemies ({', '.join(supported_strategy_names())})",
     ),
     fps: int = typer.Option(
         DEFAULT_FPS,
@@ -75,7 +81,7 @@ def main(
     watermark: bool = typer.Option(
         False,
         "--watermark",
-        help="Add watermark to the GIF",
+        help="Add watermark to the output animation",
     ),
 ) -> None:
     """
@@ -121,8 +127,11 @@ def main(
         # Generate output if requested
         if write_dataurl_to or out:
             output_path = write_dataurl_to or out
-            provider = _resolve_provider(output_path, bool(write_dataurl_to))
-            _generate_output(data, provider, strategy, fps, watermark, max_frames)
+            provider = None
+            if write_dataurl_to:
+                provider = WebpDataUrlOutputProvider(output_path)
+            
+            _generate_output(data, output_path, strategy, fps, watermark, max_frames, provider)
 
     except CLIError as e:
         err_console.print(f"[bold red]Error:[/bold red] {e}")
@@ -162,8 +171,7 @@ def _load_data_from_github(username: str) -> ContributionData:
 
     console.print(f"[bold blue]Fetching contribution data for {username}...[/bold blue]")
     try:
-        with GitHubClient(token) as client:
-            return client.get_contribution_graph(username)
+        return fetch_contribution_data(username, token)
     except GitHubAPIError as e:
         raise CLIError(f"GitHub API error: {e}")
 
@@ -178,89 +186,69 @@ def _save_data_to_file(data: ContributionData, file_path: str) -> None:
         raise CLIError(f"Failed to save file '{file_path}': {e}")
 
 
-def _resolve_provider(file_path: str, is_dataurl: bool) -> OutputProvider:
-    """
-    Resolve the appropriate output provider based on file path and mode.
-    """
-    try:
-        if is_dataurl:
-            return WebpDataUrlOutputProvider(file_path)
-        else:
-            return resolve_output_provider(file_path)
-    except ValueError as e:
-        raise CLIError(str(e))
-
-
-def _setup_animator(strategy_name: str, data: ContributionData, fps: int, watermark: bool) -> Animator:
-    """
-    Set up strategy and animator.
-    """
-    if strategy_name == "column":
-        strategy: BaseStrategy = ColumnStrategy()
-    elif strategy_name == "row":
-        strategy = RowStrategy()
-    elif strategy_name == "random":
-        strategy = RandomStrategy()
-    else:
-        raise CLIError(
-            f"Unknown strategy '{strategy_name}'. Available: column, row, random"
-        )
-
-    return Animator(data, strategy, fps=fps, watermark=watermark)
-
-
 def _generate_output(
     data: ContributionData,
-    provider: OutputProvider,
+    output_path: str,
     strategy_name: str,
     fps: int,
     watermark: bool,
     max_frames: int | None,
+    provider: OutputProvider | None = None,
 ) -> None:
-    """
-    Generate output using the provided provider.
-
-    Args:
-        data: Contribution data from GitHub
-        provider: Output provider (already resolved with path)
-        strategy_name: Name of the strategy (column, row, random)
-        fps: Frames per second
-        watermark: Whether to add watermark
-        max_frames: Maximum number of frames to generate
-
-    Raises:
-        CLIError: If output generation fails
-    """
+    """Generate animation in the format specified by output_path or provider."""
     # Warn about GIF FPS limitation
-    if provider.path.endswith(".gif") and fps > 50:
+    if output_path.lower().endswith(".gif") and fps > 50:
         console.print(
             f"[yellow]Warning:[/yellow] FPS > 50 may not display correctly in browsers "
             f"(GIF delay will be {1000 // fps}ms, but browsers clamp delays < 20ms to ~100ms)"
         )
 
-    # Print generation message
     if isinstance(provider, WebpDataUrlOutputProvider):
         console.print("\n[bold blue]Generating WebP data URL...[/bold blue]")
     else:
-        ext = Path(provider.path).suffix[1:].upper()
+        ext = Path(output_path).suffix[1:].upper()
         console.print(f"\n[bold blue]Generating {ext} animation...[/bold blue]")
 
-    # Setup strategy and animator
-    animator = _setup_animator(strategy_name, data, fps, watermark)
+    # Resolve strategy
+    strategy = _resolve_strategy(strategy_name)
 
-    # Encode and write
+    # Generate animation
     try:
-        encoded = provider.encode(animator.generate_frames(max_frames), 1000 // fps)
-        provider.write(encoded)
+        encoded = encode_animation(
+            data=data,
+            strategy=strategy,
+            output_path=output_path,
+            fps=fps,
+            watermark=watermark,
+            max_frames=max_frames,
+            provider=provider,
+        )
 
-        # Console output based on provider type
         if isinstance(provider, WebpDataUrlOutputProvider):
-            console.print(f"[green]✓[/green] Data URL written to {provider.path}")
+            # For data provider, we need to call write explicitly or let it handle it?
+            # provider.encode returns bytes (data url string). 
+            # We need to write it using the provider's write method which handles injection.
+            console.print(f"[bold blue]Injecting into {output_path}...[/bold blue]")
+            provider.write(encoded)
+            console.print(f"[green]✓[/green] Data URL written to {output_path}")
         else:
-            ext = Path(provider.path).suffix[1:].upper()
-            console.print(f"[green]✓[/green] {ext} saved to {provider.path}")
+            console.print(f"[bold blue]Saving to {output_path}...[/bold blue]")
+            with open(output_path, "wb") as f:
+                f.write(encoded)
+            ext = Path(output_path).suffix[1:].upper()
+            console.print(f"[green]✓[/green] {ext} saved to {output_path}")
+
     except Exception as e:
         raise CLIError(f"Failed to generate output: {e}")
+    except Exception as e:
+        raise CLIError(f"Failed to generate output: {e}")
+
+
+def _resolve_strategy(strategy_name: str) -> BaseStrategy:
+    try:
+        return create_strategy(strategy_name)
+    except ValueError as exc:
+        raise CLIError(str(exc))
 
 
 app = typer.Typer()

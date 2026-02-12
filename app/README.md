@@ -1,12 +1,13 @@
 # gh-space-shooter Web App
 
-A FastAPI web application that provides on-demand GitHub Space Shooter GIF generation through a browser interface.
+A FastAPI web application that provides on-demand GitHub Space Shooter animation generation through a browser interface.
 
 ## Features
 
-- Web UI for generating GIFs without CLI installation
+- Web UI for generating animations without CLI installation
 - Select GitHub username and animation strategy (random, column, row)
-- Download generated GIFs directly
+- Choose output format: GIF, WebP, or SVG
+- Download generated animations directly
 - Share functionality for supported browsers
 
 ## Setup
@@ -33,10 +34,11 @@ The app will be available at `http://localhost:8000`.
 
 ## API Endpoints
 
-- `GET /` - Web UI for generating GIFs
-- `GET /api/generate?username=<username>&strategy=<strategy>` - Generate and return a GIF
+- `GET /` - Web UI for generating animations
+- `GET /api/generate?username=<username>&strategy=<strategy>&format=<format>` - Generate and return an animation
   - `username` (required): GitHub username
   - `strategy` (optional): Animation strategy - `random`, `column`, or `row` (default: `random`)
+  - `format` (optional): Output format - `gif`, `webp`, or `svg` (default: `gif`)
 
 ## Project Structure
 
