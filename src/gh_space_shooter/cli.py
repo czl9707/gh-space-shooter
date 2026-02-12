@@ -19,7 +19,7 @@ from .game.strategies import (
 )
 from .game.strategies.base_strategy import BaseStrategy
 from .github_client import ContributionData, GitHubAPIError, fetch_contribution_data
-from .output import WebpDataUrlOutputProvider, supported_output_formats
+from .output import OutputProvider, WebpDataUrlOutputProvider, supported_output_formats
 
 # Load environment variables from .env file
 load_dotenv()
