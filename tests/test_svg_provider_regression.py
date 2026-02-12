@@ -1,8 +1,12 @@
 """Regression tests for SVG provider internals and structural output behavior."""
 
-from gh_space_shooter.game.svg_timeline import BulletFrameState, SvgTimelineFrame
+from gh_space_shooter.game.svg_timeline import BulletFrameState, EnemyFrameState, SvgTimelineFrame
 from gh_space_shooter.output import SvgOutputProvider
 from gh_space_shooter.output._svg_entity_minifier import _tl_entity_minify
+from gh_space_shooter.output._svg_timeline_encoder import (
+    _tl_encode_svg_timeline_sequence_with_enemy_groupings,
+    encode_svg_timeline_sequence,
+)
 from gh_space_shooter.output._svg_tracks import (
     _tl_build_object_slot_tracks,
     _tl_compress_linear_scalar_track,
@@ -111,3 +115,34 @@ def test_timeline_svg_linear_bullet_track_compresses_size() -> None:
 
     result = provider.encode(iter(frames), frame_duration=25)
     assert len(result) < 7000
+
+
+def test_timeline_svg_picks_smaller_enemy_grouping_variant() -> None:
+    enemies = tuple(
+        EnemyFrameState(id=f"{x}:2", x=x, y=2, health=2)
+        for x in range(52)
+    )
+    frames = [
+        SvgTimelineFrame(
+            width=900,
+            height=220,
+            time_ms=0,
+            watermark=False,
+            ship_x=25.0,
+            stars=(),
+            enemies=enemies,
+            bullets=(),
+            explosions=(),
+        )
+    ]
+
+    column_only = _tl_encode_svg_timeline_sequence_with_enemy_groupings(
+        frames, frame_duration=25, enemy_groupings=("column",)
+    )
+    row_only = _tl_encode_svg_timeline_sequence_with_enemy_groupings(
+        frames, frame_duration=25, enemy_groupings=("row",)
+    )
+    adaptive = encode_svg_timeline_sequence(frames, frame_duration=25)
+
+    assert len(row_only) < len(column_only)
+    assert adaptive == row_only

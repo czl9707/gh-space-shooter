@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 import math
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -26,6 +26,7 @@ from ._svg_tracks import (
 
 
 _NameKey = TypeVar("_NameKey")
+_EnemyGroupingMode = Literal["column", "row"]
 _Point = tuple[float, float]
 _StarTrackSample = tuple[int, float, float, int, float]
 
@@ -46,12 +47,24 @@ def encode_svg_timeline_sequence(frames: list[SvgTimelineFrame], frame_duration:
     Pipeline:
     1. Build reusable symbol/paint palettes.
     2. Build per-entity animation tracks (stars/enemies/explosions/bullets/ship).
-    3. Minify repeated XML attribute values.
+    3. Render row-grouped and column-grouped enemy variants.
+    4. Minify repeated XML attribute values and keep the smaller result.
     """
+    return _tl_encode_svg_timeline_sequence_with_enemy_groupings(
+        frames,
+        frame_duration,
+        enemy_groupings=("column", "row"),
+    )
+
+
+def _tl_encode_svg_timeline_sequence_with_enemy_groupings(
+    frames: list[SvgTimelineFrame],
+    frame_duration: int,
+    enemy_groupings: tuple[_EnemyGroupingMode, ...],
+) -> bytes:
     context = RenderContext.darkmode()
     total_duration_ms = max(1, len(frames) * frame_duration)
     width, height = _tl_resolve_timeline_dimensions(frames)
-    enemy_size = context.cell_size + 1
 
     star_defs, star_symbol_ids = _tl_star_template_defs(frames)
     enemy_fill_color_counts = _tl_collect_enemy_fill_color_usage(frames, context)
@@ -61,15 +74,62 @@ def encode_svg_timeline_sequence(frames: list[SvgTimelineFrame], frame_duration:
     enemy_fill_palette, explosion_stroke_palette = _tl_build_palette_class_maps(
         enemy_fill_color_counts, explosion_stroke_color_counts
     )
-    enemy_elements = _tl_enemy_elements(
-        frames, context, total_duration_ms, enemy_fill_palette
-    )
     explosion_elements = _tl_explosion_elements(
         frames, context, total_duration_ms, explosion_stroke_palette
     )
+    star_elements = _tl_star_elements(frames, context, total_duration_ms, star_symbol_ids)
+    bullet_elements = _tl_bullet_elements(frames, context, total_duration_ms)
+    ship_elements = _tl_ship_elements(frames, context, total_duration_ms)
     palette_css = _tl_palette_style(enemy_fill_palette, explosion_stroke_palette)
 
+    best_minified: str | None = None
+    for grouping in enemy_groupings:
+        enemy_elements = _tl_enemy_elements(
+            frames,
+            context,
+            total_duration_ms,
+            enemy_fill_palette,
+            grouping=grouping,
+        )
+        svg_markup = _tl_compose_svg_markup(
+            width=width,
+            height=height,
+            context=context,
+            palette_css=palette_css,
+            star_defs=star_defs,
+            star_elements=star_elements,
+            enemy_elements=enemy_elements,
+            explosion_elements=explosion_elements,
+            bullet_elements=bullet_elements,
+            ship_elements=ship_elements,
+            watermark=frames[0].watermark,
+        )
+        minified = _tl_entity_minify(svg_markup)
+        if best_minified is None or len(minified) < len(best_minified):
+            best_minified = minified
+
+    if best_minified is None:
+        return b""
+    return best_minified.encode("utf-8")
+
+
+def _tl_compose_svg_markup(
+    *,
+    width: int,
+    height: int,
+    context: RenderContext,
+    palette_css: str,
+    star_defs: list[str],
+    star_elements: list[str],
+    enemy_elements: list[str],
+    explosion_elements: list[str],
+    bullet_elements: list[str],
+    ship_elements: list[str],
+    watermark: bool,
+) -> str:
+    enemy_size = context.cell_size + 1
     ship_fill = _tl_hex(context.ship_color)
+
     parts: list[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
@@ -84,22 +144,20 @@ def encode_svg_timeline_sequence(frames: list[SvgTimelineFrame], frame_duration:
     ]
 
     parts.append('<g shape-rendering="crispEdges">')
-
     parts.append(
         f'<rect width="{width}" height="{height}" fill="{_tl_hex(context.background_color)}"/>'
     )
-    parts.extend(_tl_star_elements(frames, context, total_duration_ms, star_symbol_ids))
+    parts.extend(star_elements)
     parts.extend(enemy_elements)
     parts.extend(explosion_elements)
-    parts.extend(_tl_bullet_elements(frames, context, total_duration_ms))
-    parts.extend(_tl_ship_elements(frames, context, total_duration_ms))
-
+    parts.extend(bullet_elements)
+    parts.extend(ship_elements)
     parts.append("</g>")
-    if frames[0].watermark:
+
+    if watermark:
         parts.append(_tl_watermark_element(width, height))
     parts.append("</svg>")
-    svg_markup = "".join(parts)
-    return _tl_entity_minify(svg_markup).encode("utf-8")
+    return "".join(parts)
 
 
 def _tl_resolve_timeline_dimensions(frames: list[SvgTimelineFrame]) -> tuple[int, int]:
@@ -263,24 +321,44 @@ def _tl_enemy_elements(
     context: RenderContext,
     total_duration_ms: int,
     fill_palette: dict[str, str],
+    grouping: _EnemyGroupingMode = "column",
 ) -> list[str]:
     enemies_by_id: dict[str, tuple[int, int]] = {}
     for enemy in frames[0].enemies:
         enemies_by_id[enemy.id] = (enemy.x, enemy.y)
 
     enemy_health_by_frame = [{enemy.id: enemy.health for enemy in frame.enemies} for frame in frames]
+    frame_times = [frame.time_ms for frame in frames]
 
-    enemies_by_x: dict[int, list[str]] = {}
-    for enemy_id, (x_cell, _) in enemies_by_id.items():
-        enemies_by_x.setdefault(x_cell, []).append(enemy_id)
+    grouped_enemy_ids: dict[int, list[str]] = {}
+    if grouping == "column":
+        for enemy_id, (x_cell, _) in enemies_by_id.items():
+            grouped_enemy_ids.setdefault(x_cell, []).append(enemy_id)
+    elif grouping == "row":
+        for enemy_id, (_, y_cell) in enemies_by_id.items():
+            grouped_enemy_ids.setdefault(y_cell, []).append(enemy_id)
+    else:
+        raise ValueError(f"Unknown enemy grouping: {grouping}")
 
     elements: list[str] = []
-    for x_cell in sorted(enemies_by_x):
-        x, _ = context.get_cell_position(x_cell, 0)
-        column_parts: list[str] = []
-        for enemy_id in sorted(enemies_by_x[x_cell]):
-            _, y_cell = enemies_by_id[enemy_id]
-            _, y = context.get_cell_position(0, y_cell)
+    for group_cell in sorted(grouped_enemy_ids):
+        if grouping == "column":
+            group_offset, _ = context.get_cell_position(group_cell, 0)
+            axis_attr = "y"
+            group_start = f'<g transform="translate({_tl_num(group_offset)} 0)">'
+        else:
+            _, group_offset = context.get_cell_position(0, group_cell)
+            axis_attr = "x"
+            group_start = f'<g transform="translate(0 {_tl_num(group_offset)})">'
+
+        group_parts: list[str] = []
+        for enemy_id in sorted(grouped_enemy_ids[group_cell]):
+            x_cell, y_cell = enemies_by_id[enemy_id]
+            if grouping == "column":
+                _, axis_value = context.get_cell_position(0, y_cell)
+            else:
+                axis_value, _ = context.get_cell_position(x_cell, 0)
+
             health_series: list[int | None] = []
             for frame_map in enemy_health_by_frame:
                 health_series.append(frame_map.get(enemy_id))
@@ -313,7 +391,9 @@ def _tl_enemy_elements(
             fill_times, fill_classes = _tl_compress_discrete_track(fill_times, fill_classes)
             fill_times, fill_classes = _tl_pad_local_track(fill_times, fill_classes, total_duration_ms)
             initial_fill_class = fill_classes[0]
-            rect_parts = [f'<use href="#e" y="{_tl_num(y)}" class="{initial_fill_class}">']
+            rect_parts = [
+                f'<use href="#e" {axis_attr}="{_tl_num(axis_value)}" class="{initial_fill_class}">'
+            ]
             if _tl_has_distinct_values(fill_classes):
                 fill_class_values = ";".join(fill_classes)
                 rect_parts.append(
@@ -322,13 +402,12 @@ def _tl_enemy_elements(
                     f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
                 )
 
-            presence_times = [frame.time_ms for frame in frames]
             presence_values = [1.0 if health is not None else 0.0 for health in health_series]
-            presence_times, presence_values = _tl_compress_scalar_track(
-                presence_times, presence_values
+            enemy_presence_times, presence_values = _tl_compress_scalar_track(
+                frame_times, presence_values
             )
-            presence_times, presence_values = _tl_pad_local_track(
-                presence_times, presence_values, total_duration_ms
+            enemy_presence_times, presence_values = _tl_pad_local_track(
+                enemy_presence_times, presence_values, total_duration_ms
             )
             if any(value < 0.5 for value in presence_values):
                 presence_value_text = ";".join(
@@ -336,17 +415,15 @@ def _tl_enemy_elements(
                 )
                 rect_parts.append(
                     f'<animate attributeName="opacity" values="{presence_value_text}" '
-                    f'{_tl_key_times_attr(presence_times, total_duration_ms)} '
+                    f'{_tl_key_times_attr(enemy_presence_times, total_duration_ms)} '
                     f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
                 )
 
             rect_parts.append("</use>")
-            column_parts.append("".join(rect_parts))
+            group_parts.append("".join(rect_parts))
 
-        if column_parts:
-            elements.append(
-                f'<g transform="translate({_tl_num(x)} 0)">{"".join(column_parts)}</g>'
-            )
+        if group_parts:
+            elements.append(f'{group_start}{"".join(group_parts)}</g>')
 
     return elements
 
