@@ -51,6 +51,12 @@ def main(
         "-o",
         help="Generate animated visualization (GIF or WebP)",
     ),
+    write_dataurl_to: str = typer.Option(
+        None,
+        "--write-dataurl-to",
+        "-wdt",
+        help="Generate WebP as data URL and write to text file",
+    ),
     strategy: str = typer.Option(
         "random",
         "--strategy",
@@ -89,7 +95,15 @@ def main(
     try:
         if not username:
             raise CLIError("Username is required")
-        if not out:
+
+        # Validate mutual exclusivity of output options
+        if out and write_dataurl_to:
+            raise CLIError(
+                "Cannot specify both --output and --write-dataurl-to. Choose one."
+            )
+
+        # Set default output path if neither option specified
+        if not out and not write_dataurl_to:
             out = f"{username}-gh-space-shooter.gif"
         # Load data from file or GitHub
         if raw_input:
@@ -107,7 +121,10 @@ def main(
             _save_data_to_file(data, raw_output)
 
         # Generate output if requested
-        _generate_output(data, out, strategy, fps, watermark, max_frames)
+        if write_dataurl_to:
+            _generate_dataurl_output(data, write_dataurl_to, strategy, fps, watermark, max_frames)
+        elif out:
+            _generate_output(data, out, strategy, fps, watermark, max_frames)
 
     except CLIError as e:
         err_console.print(f"[bold red]Error:[/bold red] {e}")
@@ -215,6 +232,47 @@ def _generate_output(
         console.print(f"[green]✓[/green] {ext} saved to {file_path}")
     except Exception as e:
         raise CLIError(f"Failed to generate animation: {e}")
+
+
+def _generate_dataurl_output(
+    data: ContributionData,
+    file_path: str,
+    strategy_name: str,
+    fps: int,
+    watermark: bool,
+    max_frames: int | None,
+) -> None:
+    """Generate WebP data URL and write to text file."""
+
+    console.print(f"\n[bold blue]Generating WebP data URL...[/bold blue]")
+
+    # Resolve strategy
+    if strategy_name == "column":
+        strategy: BaseStrategy = ColumnStrategy()
+    elif strategy_name == "row":
+        strategy = RowStrategy()
+    elif strategy_name == "random":
+        strategy = RandomStrategy()
+    else:
+        raise CLIError(
+            f"Unknown strategy '{strategy_name}'. Available: column, row, random"
+        )
+
+    # Import the data URL provider
+    from .output.webp_dataurl_provider import WebpDataUrlOutputProvider
+
+    # Generate animation
+    try:
+        animator = Animator(data, strategy, fps=fps, watermark=watermark)
+        provider = WebpDataUrlOutputProvider(file_path)
+        provider.encode(
+            animator.generate_frames(max_frames),
+            frame_duration=1000 // fps
+        )
+
+        console.print(f"[green]✓[/green] Data URL written to {file_path}")
+    except Exception as e:
+        raise CLIError(f"Failed to generate data URL: {e}")
 
 
 app = typer.Typer()
