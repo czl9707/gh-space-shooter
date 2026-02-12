@@ -1,6 +1,6 @@
 # gh-space-shooter 🚀
 
-Transform your GitHub contribution graph into an epic space shooter game!
+Transform your GitHub contribution graph into an epic space shooter game! 
 
 ![Example Game](example.gif)
 
@@ -8,7 +8,7 @@ Transform your GitHub contribution graph into an epic space shooter game!
 
 ### Onetime Generation
 
-A [web interface](https://gh-space-shooter.kiyo-n-zane.com) is available for on-demand GIF generation without installing anything locally.
+A [web interface](https://gh-space-shooter.kiyo-n-zane.com) is available for on-demand GIF generation without installing anything locally. 
 
 ### GitHub Action
 
@@ -19,7 +19,7 @@ name: Update Space Shooter Game
 
 on:
   schedule:
-    - cron: '0 0 * *'  # Daily at midnight UTC
+    - cron: '0 0 * * *'  # Daily at midnight UTC
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: czl9707/gh-space-shooter@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,7 +39,6 @@ jobs:
 ```
 
 Then display it in your README:
-
 ```markdown
 ![My GitHub Game](game.gif)
 ```
@@ -47,18 +47,15 @@ Then display it in your README:
 - `github-token` (required): GitHub token for fetching contributions
 - `username` (optional): Username to generate game for (defaults to repo owner)
 - `output-path` (optional): Where to save the animation, supports `.gif` or `.webp` (default: `gh-space-shooter.gif`)
-- `write-dataurl-to` (optional): Write WebP as HTML `<img>` data URL to text file (supports `<!-- space-shooter -->` marker injection or append mode)
+*'*-write-dataurl-to (optional): Write WebP as HTML  data URL to text file'
 - `strategy` (optional): Attack pattern - `column`, `row`, or `random` (default: `random`)
-- `fps` (optional): Frames per second for animation (default: `40`)
-- `commit-message` (optional): Commit message for update
+- `fps` (optional): Frames per second for the animation (default: `40`)
+- `write-dataurl-to` (optional): Write WebP as HTML `<img>` data URL to text file
+- `commit-message` (optional): Commit message for the update
 
 ### From PyPI
 
 ```bash
-# Install dependencies (uses uv package manager)
-uv sync
-
-# Or with pip
 pip install gh-space-shooter
 ```
 
@@ -90,75 +87,82 @@ pip install -e .
    touch .env
    echo "GH_TOKEN=your_token_here" >> .env
    ```
+
    Alternatively, export the token directly:
    ```bash
    export GH_TOKEN=your_token_here
    ```
 
-## Project Context
+## CLI Usage
 
-**Current main usage**: GitHub Action that automatically updates a game GIF in user repositories daily (see `.github/workflows/` for action definition).
+### Generate Your Game Animation (GIF or WebP)
 
-**Web App**: A FastAPI-based web application is available in the `app/` directory for on-demand GIF generation. See `app/README.md` for details.
+Transform your GitHub contributions into an epic space shooter!
 
-## Architecture Overview
+```bash
+# Basic usage - generates username-gh-space-shooter.gif
+gh-space-shooter <username>
 
-This is a CLI tool that transforms GitHub contribution graphs into animated space shooter GIFs using Pillow.
+# Examples
+gh-space-shooter torvalds
+gh-space-shooter octocat
 
-### Core Flow
+# Specify custom output filename (GIF or WebP)
+gh-space-shooter torvalds --output my-epic-game.gif
+gh-space-shooter torvalds -o my-game.webp
 
-1. **CLI (`cli.py`)** - Typer-based entry point that orchestrates the pipeline
-2. **GitHubClient (`github_client.py`)** - Fetches contribution data via GitHub GraphQL API, returns typed `ContributionData` dict
-3. **Animator (`game/animator.py`)** - Main game loop that coordinates strategy execution and frame generation
-4. **GameState (`game/game_state.py`)** - Central state container holding ship, enemies, bullets, explosions
-5. **Renderer (`game/renderer.py`)** - Converts GameState to PIL Images each frame
+# Choose enemy attack strategy
+gh-space-shooter torvalds --strategy row      # Enemies attack in rows
+gh-space-shooter torvalds -s random           # Random chaos (default)
 
-### Strategy Pattern
+# Adjust animation frame rate
+gh-space-shooter torvalds --fps 25            # Lower Frame rate, Smaller file size
+gh-space-shooter torvalds --fps 40            # Default Frame rate, Larger file size
 
-Strategies (`game/strategies/`) define how the ship clears enemies:
-- `BaseStrategy` - Abstract base defining `generate_actions(game_state) -> Iterator[Action]`
-- `ColumnStrategy` - Clears enemies column by column (left to right)
-- `RowStrategy` - Clears enemies row by row (top to bottom)
-- `RandomStrategy` - Targets enemies in random order
+# Stop the animation earlier
+gh-space-shooter torvalds --max-frame 200     # Stop after 200 frames
+```
 
-Strategies yield `Action(x, shoot)` objects. The Animator processes these: moving the ship to position `x`, waiting for movement/cooldown to complete, then shooting if `shoot=True`.
+This creates an animated GIF showing:
+- Your contribution graph as enemies (more contributions = stronger enemies)
+- A Galaga-style spaceship battling through your coding history
+- Enemy attack patterns based on your chosen strategy
+- Smooth animations with randomized particle effects
+- Your contribution stats displayed in the console
 
-### Drawable System
+### Advanced Options
 
-All game objects inherit from `Drawable` (`game/drawables/drawable.py`):
-- `animate(delta_time)` - Update state (position, cooldowns, particles)
-- `draw(draw, context)` - Render to PIL ImageDraw
+```bash
+# Save raw contribution data to JSON
+gh-space-shooter torvalds --raw-output data.json
 
-Drawables: `Ship`, `Enemy`, `Bullet`, `Explosion`, `Starfield`
+# Load from previously saved JSON (saves API rate limits)
+gh-space-shooter --raw-input data.json --output game.webp
 
-The `RenderContext` (`game/render_context.py`) holds theming (colors, cell sizes, padding) and coordinate conversion helpers.
+# Combine options
+gh-space-shooter torvalds -o game.webp -ro data.json -s column
+```
 
-### Animation Loop
+### Data Format
 
-In `Animator._generate_frames()`:
-1. Strategy yields next action
-2. Ship moves to target x position (animate frames until arrived)
-3. Ship shoots if action.shoot (animate frames for bullet travel + explosions)
-4. Repeat until all enemies destroyed
-
-Frame rate is configurable (default 40 FPS). All speeds use delta_time for frame-rate independence.
-
-### Key Constants (`constants.py`)
-
-- `NUM_WEEKS = 52` - Contribution graph width
-- `NUM_DAYS = 7` - Contribution graph height
-- Speeds are in cells/second, durations in seconds
-
-### Output Providers
-
-Output providers encode frames to different formats for writing:
-- **`GifOutputProvider`** - Animated GIF format
-- **`WebPOutputProvider`** - Animated WebP format
-- **`WebpDataUrlOutputProvider`** - HTML `<img>` tag with WebP data URL for direct embedding
-
-Each provider implements:
-- `encode(frames, frame_duration) -> bytes` - Encode frames to output format
-- `write(path, data) -> None` - Write encoded data to file (providers store path from constructor)
+When saved to JSON, the data includes:
+```json
+{
+  "username": "torvalds",
+  "total_contributions": 1234,
+  "weeks": [
+    {
+      "days": [
+        {
+          "date": "2024-01-01",
+          "count": 5,
+          "level": 2
+        }
+      ]
+    }
+  ]
+}
+```
 
 ## License
 
