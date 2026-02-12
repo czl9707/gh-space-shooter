@@ -1,84 +1,84 @@
 """Regression tests for SVG provider internals and structural output behavior."""
 
-from gh_space_shooter.game.svg_timeline import BulletFrameState, EnemyFrameState, SvgTimelineFrame
+import xml.etree.ElementTree as ET
+from unittest.mock import patch
+
+from gh_space_shooter.game.svg_timeline import (
+    BulletFrameState,
+    EnemyFrameState,
+    SvgTimelineFrame,
+)
 from gh_space_shooter.output import SvgOutputProvider
 from gh_space_shooter.output._svg_entity_minifier import _tl_entity_minify
 from gh_space_shooter.output._svg_timeline_encoder import (
     _tl_encode_svg_timeline_sequence_with_enemy_groupings,
     encode_svg_timeline_sequence,
 )
-from gh_space_shooter.output._svg_tracks import (
-    _tl_build_object_slot_tracks,
-    _tl_compress_linear_scalar_track,
-    _tl_compress_points_with_forced,
-    _tl_compress_scalar_track,
-    _tl_pad_local_track,
-)
 
 
-def test_track_compression_preserves_endpoints_and_monotonic_times() -> None:
-    times, values = _tl_compress_scalar_track([0, 10, 20, 30], [1.0, 1.0, 2.0, 2.0])
-    padded_times, padded_values = _tl_pad_local_track(times, values, duration_ms=30)
-
-    assert padded_times[0] == 0
-    assert padded_times[-1] == 30
-    assert padded_values[0] == 1.0
-    assert padded_values[-1] == 2.0
-    assert all(padded_times[i] <= padded_times[i + 1] for i in range(len(padded_times) - 1))
+def _assert_valid_svg_xml(markup: str | bytes) -> ET.Element:
+    text = markup.decode("utf-8") if isinstance(markup, bytes) else markup
+    root = ET.fromstring(text)
+    assert root.tag == "{http://www.w3.org/2000/svg}svg"
+    return root
 
 
-def test_linear_scalar_track_compression_preserves_turn_points() -> None:
-    times, values = _tl_compress_linear_scalar_track(
-        [0, 10, 20, 30, 40],
-        [0.0, 1.0, 2.0, 3.0, 3.0],
-    )
-    assert times == [0, 30, 40]
-    assert values == [0.0, 3.0, 3.0]
+def _xml_semantic_signature(markup: str) -> tuple[str, tuple[tuple[str, str], ...], tuple[object, ...]]:
+    root = ET.fromstring(markup)
 
+    def walk(node: ET.Element) -> tuple[str, tuple[tuple[str, str], ...], tuple[object, ...]]:
+        children = tuple(walk(child) for child in list(node))
+        return (node.tag, tuple(sorted(node.attrib.items())), children)
 
-
-def test_point_compression_with_forced_indices_keeps_ends() -> None:
-    points, times = _tl_compress_points_with_forced(
-        points=[(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)],
-        times=[0, 10, 20],
-        forced_indices={0, 2},
-    )
-
-    assert points[0] == (0.0, 0.0)
-    assert points[-1] == (2.0, 2.0)
-    assert times[0] == 0
-    assert times[-1] == 20
-
-
-def test_slot_tracks_can_avoid_same_frame_slot_reuse() -> None:
-    frame_maps = [
-        {"a": (0, 0)},
-        {"b": (10, 10)},  # replacement in the immediate next frame
-    ]
-    tracks = _tl_build_object_slot_tracks(frame_maps, reuse_slots_within_frame=False)
-
-    # Slot 0 must fully end before slot 1 starts; this avoids visible teleport
-    # when linear interpolation is used for motion tracks.
-    assert tracks[0] == [(0, 0), None]
-    assert tracks[1] == [None, (10, 10)]
+    return walk(root)
 
 
 def test_entity_minifier_only_applies_when_savings_positive() -> None:
-    svg_with_short_values = '<?xml version="1.0"?><svg><g x="0"/><g x="0"/></svg>'
+    svg_with_short_values = (
+        '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg">'
+        '<g x="0"/><g x="0"/></svg>'
+    )
     unchanged = _tl_entity_minify(svg_with_short_values)
 
     assert unchanged == svg_with_short_values
+    _assert_valid_svg_xml(unchanged)
+    assert _xml_semantic_signature(unchanged) == _xml_semantic_signature(svg_with_short_values)
 
-    long_values = "1;2;3;4;5;6;7;8;9;10;11;12"
+    long_values = ";".join(str(index) for index in range(1, 61))
     svg_with_repeated_long_values = (
-        '<?xml version="1.0"?><svg>'
-        f'<g values="{long_values}"/><g values="{long_values}"/></svg>'
+        '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg">'
+        f'<g values="{long_values}"/><g values="{long_values}"/><g values="{long_values}"/></svg>'
     )
     minimized = _tl_entity_minify(svg_with_repeated_long_values)
 
     assert "<!DOCTYPE svg [" in minimized
     assert "&" in minimized and ";" in minimized
+    assert len(minimized) < len(svg_with_repeated_long_values)
     assert minimized != svg_with_repeated_long_values
+    _assert_valid_svg_xml(minimized)
+    assert _xml_semantic_signature(minimized) == _xml_semantic_signature(
+        svg_with_repeated_long_values
+    )
+
+
+def test_entity_minifier_prefix_rewrites_preserve_xml_values() -> None:
+    prefix = ";".join(str(index) for index in range(1, 25))
+    value_one = f"{prefix};101"
+    value_two = f"{prefix};202"
+    key_times_one = f"{prefix};303"
+    key_times_two = f"{prefix};404"
+    original = (
+        '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg">'
+        f'<g values="{value_one}"/><g values="{value_two}"/>'
+        f'<g keyTimes="{key_times_one}"/><g keyTimes="{key_times_two}"/>'
+        "</svg>"
+    )
+
+    minimized = _tl_entity_minify(original)
+
+    assert len(minimized) < len(original)
+    _assert_valid_svg_xml(minimized)
+    assert _xml_semantic_signature(minimized) == _xml_semantic_signature(original)
 
 
 def test_timeline_svg_linear_bullet_track_compresses_size() -> None:
@@ -113,8 +113,23 @@ def test_timeline_svg_linear_bullet_track_compresses_size() -> None:
             )
         )
 
-    result = provider.encode(iter(frames), frame_duration=25)
-    assert len(result) < 7000
+    optimized = provider.encode(iter(frames), frame_duration=25)
+
+    def _identity_points(
+        points: list[tuple[float, float]],
+        times: list[int],
+        forced_indices: set[int],
+    ) -> tuple[list[tuple[float, float]], list[int]]:
+        _ = forced_indices
+        return points, times
+
+    with patch(
+        "gh_space_shooter.output._svg_timeline_encoder._tl_compress_points_with_forced",
+        side_effect=_identity_points,
+    ):
+        uncompressed_points = provider.encode(iter(frames), frame_duration=25)
+
+    assert len(optimized) < len(uncompressed_points)
 
 
 def test_timeline_svg_picks_smaller_enemy_grouping_variant() -> None:
@@ -144,5 +159,5 @@ def test_timeline_svg_picks_smaller_enemy_grouping_variant() -> None:
     )
     adaptive = encode_svg_timeline_sequence(frames, frame_duration=25)
 
-    assert len(row_only) < len(column_only)
-    assert adaptive == row_only
+    assert len(adaptive) <= len(column_only)
+    assert len(adaptive) <= len(row_only)

@@ -138,7 +138,7 @@ def _tl_compose_svg_markup(
         f'<g id="b">{"".join(_tl_bullet_shape_elements(context))}</g>',
         f'<g id="s" shape-rendering="crispEdges" fill="{ship_fill}">'
         f'{"".join(_tl_ship_symbol_elements(context))}</g>',
-        f'<rect id="e" width="{enemy_size}" height="{enemy_size}" rx="2" ry="2"/>',
+        f'<rect id="e" width="{enemy_size}" height="{enemy_size}" rx="2"/>',
         *star_defs,
         "</defs>",
     ]
@@ -223,38 +223,55 @@ def _tl_render_star_track(
     points, times = _tl_compress_points_with_forced(global_points, global_times, forced_indices)
     times, points = _tl_pad_local_track(times, points, total_duration_ms)
 
+    start_transform = (
+        f'translate({_tl_num_step(points[0][0], 0.01)} '
+        f'{_tl_num_step(points[0][1], 0.01)})'
+    )
     translate_values = ";".join(
         f"{_tl_num_step(x, 0.01)} {_tl_num_step(y, 0.01)}" for x, y in points
     )
     key_times_attr = _tl_key_times_attr(times, total_duration_ms)
-
-    base_group = (
-        f'<g transform="translate({_tl_num_step(points[0][0], 0.01)} '
-        f'{_tl_num_step(points[0][1], 0.01)})">'
-        f'<use href="#{symbol_id}"/>'
+    animate_transform = (
         f'<animateTransform attributeName="transform" type="translate" '
         f'values="{translate_values}" {key_times_attr} dur="{total_duration_ms}ms" '
         f'repeatCount="indefinite"/>'
     )
+
     if not wrap_indices:
-        return f"{base_group}</g>"
+        inline_parts = [f'<use href="#{symbol_id}" transform="{start_transform}">']
+        inline_parts.append(animate_transform)
+        inline_parts.append("</use>")
+        inline_markup = "".join(inline_parts)
+        grouped_markup = (
+            f'<g transform="{start_transform}">'
+            f'<use href="#{symbol_id}"/>'
+            f"{animate_transform}</g>"
+        )
+        return _tl_shorter_markup(inline_markup, grouped_markup)
 
     visibility_times, visibility_values = _tl_star_visibility_track(
         global_times, wrap_indices, total_duration_ms
     )
     visibility_values_attr = ";".join(_tl_num(value) for value in visibility_values)
-    return (
-        f'<g opacity="{_tl_num(visibility_values[0])}" '
-        f'transform="translate({_tl_num_step(points[0][0], 0.01)} '
-        f'{_tl_num_step(points[0][1], 0.01)})">'
-        f'<use href="#{symbol_id}"/>'
-        f'<animateTransform attributeName="transform" type="translate" '
-        f'values="{translate_values}" {key_times_attr} dur="{total_duration_ms}ms" '
-        f'repeatCount="indefinite"/>'
+    visibility_animate = (
         f'<animate attributeName="opacity" values="{visibility_values_attr}" '
         f'{_tl_key_times_attr(visibility_times, total_duration_ms)} '
-        f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/></g>'
+        f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
     )
+    inline_parts = [
+        f'<use href="#{symbol_id}" opacity="{_tl_num(visibility_values[0])}" '
+        f'transform="{start_transform}">'
+    ]
+    inline_parts.append(animate_transform)
+    inline_parts.append(visibility_animate)
+    inline_parts.append("</use>")
+    inline_markup = "".join(inline_parts)
+    grouped_markup = (
+        f'<g opacity="{_tl_num(visibility_values[0])}" transform="{start_transform}">'
+        f'<use href="#{symbol_id}"/>'
+        f"{animate_transform}{visibility_animate}</g>"
+    )
+    return _tl_shorter_markup(inline_markup, grouped_markup)
 
 
 def _tl_star_symbol_id(
@@ -266,6 +283,12 @@ def _tl_star_symbol_id(
     star_value = max(0, min(255, int(255 * brightness)))
     fill = _tl_hex((star_value, star_value, star_value))
     return star_symbol_ids.get((size, fill))
+
+
+def _tl_shorter_markup(first: str, second: str) -> str:
+    if len(second) < len(first):
+        return second
+    return first
 
 
 def _tl_star_wrap_indices(points: list[_Point]) -> list[int]:
@@ -484,16 +507,31 @@ def _tl_bullet_elements(
             opacity_times, opacity_values, total_duration_ms
         )
 
-        elements.append(
+        opacity_animate = (
+            f'<animate attributeName="opacity" '
+            f'values="{";".join(_tl_num(value) for value in opacity_values)}" '
+            f'{_tl_key_times_attr(opacity_times, total_duration_ms)} '
+            f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
+        )
+
+        point_animate = _tl_point_animate_transform(track_points, track_times, total_duration_ms)
+        inline_markup = (
+            f'<use href="#b" opacity="{_tl_num(opacity_values[0])}" '
+            f'transform="translate({_tl_num(track_points[0][0])} {_tl_num(track_points[0][1])})">'
+            f"{point_animate}"
+            f"{opacity_animate}</use>"
+        )
+        grouped_markup = (
             f'<g opacity="{_tl_num(opacity_values[0])}" '
             f'transform="translate({_tl_num(track_points[0][0])} {_tl_num(track_points[0][1])})">'
             f'<use href="#b"/>'
-            f'{_tl_point_animate_transform(track_points, track_times, total_duration_ms)}'
+            f"{point_animate}"
             f'<animate attributeName="opacity" '
             f'values="{";".join(_tl_num(value) for value in opacity_values)}" '
             f'{_tl_key_times_attr(opacity_times, total_duration_ms)} '
             f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/></g>'
         )
+        elements.append(_tl_shorter_markup(inline_markup, grouped_markup))
 
     return elements
 
@@ -542,7 +580,11 @@ def _tl_explosion_progress(explosion: ExplosionFrameState) -> float:
     return min(1.0, max(0.0, explosion.elapsed_time / explosion.duration))
 
 
-def _tl_explosion_fade(progress: float) -> float:
+def _tl_explosion_fade(
+    progress: float,
+) -> float:
+    # Match raster/WebP behavior: blend bullet color over background using
+    # 8-bit alpha derived from explosion progress.
     return int(255 * max(0.0, 1.0 - progress)) / 255.0
 
 
@@ -580,7 +622,9 @@ def _tl_sample_explosion_track(
     current_progress = _tl_explosion_progress(first_active)
     current_width = float(_tl_explosion_particle_size(current_progress) * 2 + 1)
     current_color = _tl_blend_hex_over_background(
-        bullet_rgb, background_rgb, _tl_explosion_fade(current_progress)
+        bullet_rgb,
+        background_rgb,
+        _tl_explosion_fade(current_progress),
     )
     current_center = _tl_explosion_center(context, first_active.x, first_active.y)
 
@@ -594,7 +638,7 @@ def _tl_sample_explosion_track(
     )
 
     # Carry forward the latest sampled values while the slot is active;
-    # when a slot is inactive we keep position/path stable and animate opacity to 0.
+    # when a slot is inactive we keep position/path stable and fade opacity to 0.
     for explosion in slot_track:
         if explosion is not None:
             points = _tl_explosion_path_points(explosion)
@@ -603,7 +647,9 @@ def _tl_sample_explosion_track(
             current_progress = _tl_explosion_progress(explosion)
             current_width = float(_tl_explosion_particle_size(current_progress) * 2 + 1)
             current_color = _tl_blend_hex_over_background(
-                bullet_rgb, background_rgb, _tl_explosion_fade(current_progress)
+                bullet_rgb,
+                background_rgb,
+                _tl_explosion_fade(current_progress),
             )
             current_center = _tl_explosion_center(context, explosion.x, explosion.y)
             samples.opacity_values.append(1.0)
@@ -643,35 +689,56 @@ def _tl_explosion_path_markup(
     stroke_color_times: list[int],
     total_duration_ms: int,
 ) -> str:
-    path_parts = [
+    compact_parts = [
         f'<path d="{d_values[0]}" fill="none" class="{stroke_class_values[0]}" '
         f'stroke-width="{_tl_num(stroke_width_values[0])}" stroke-linecap="square" '
         f'vector-effect="non-scaling-stroke" transform="scale({_tl_num(progress_values[0])})">'
     ]
+    full_parts = list(compact_parts)
     if len(d_values) > 1:
-        path_parts.append(
+        d_animate = (
             f'<animate attributeName="d" values="{";".join(d_values)}" '
             f'{_tl_key_times_attr(d_times, total_duration_ms)} '
             f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
         )
+        compact_parts.append(d_animate)
+        full_parts.append(d_animate)
 
-    path_parts.extend(
-        [
-            _tl_scalar_animate_transform(
-                "scale", progress_values, progress_times, total_duration_ms
-            ),
-            f'<animate attributeName="stroke-width" '
-            f'values="{";".join(_tl_num(value) for value in stroke_width_values)}" '
-            f'{_tl_key_times_attr(stroke_width_times, total_duration_ms)} '
-            f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>',
-            f'<animate attributeName="class" '
-            f'values="{";".join(stroke_class_values)}" '
-            f'{_tl_key_times_attr(stroke_color_times, total_duration_ms)} '
-            f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>',
-            "</path>",
-        ]
+    scale_animate = _tl_scalar_animate_transform(
+        "scale", progress_values, progress_times, total_duration_ms
     )
-    return "".join(path_parts)
+    if scale_animate:
+        compact_parts.append(scale_animate)
+        full_parts.append(scale_animate)
+
+    compact_parts.append(
+        f'<animate attributeName="stroke-width" '
+        f'values="{";".join(_tl_num(value) for value in stroke_width_values)}" '
+        f'{_tl_key_times_attr(stroke_width_times, total_duration_ms)} '
+        f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
+    )
+    full_parts.append(
+        f'<animate attributeName="stroke-width" '
+        f'values="{";".join(_tl_num(value) for value in stroke_width_values)}" '
+        f'{_tl_key_times_attr(stroke_width_times, total_duration_ms)} '
+        f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
+    )
+
+    compact_parts.append(
+        f'<animate attributeName="class" '
+        f'values="{";".join(stroke_class_values)}" '
+        f'{_tl_key_times_attr(stroke_color_times, total_duration_ms)} '
+        f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
+    )
+    full_parts.append(
+        f'<animate attributeName="class" '
+        f'values="{";".join(stroke_class_values)}" '
+        f'{_tl_key_times_attr(stroke_color_times, total_duration_ms)} '
+        f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
+    )
+    compact_parts.append("</path>")
+    full_parts.append("</path>")
+    return _tl_shorter_markup("".join(compact_parts), "".join(full_parts))
 
 
 def _tl_explosion_elements(
@@ -690,7 +757,12 @@ def _tl_explosion_elements(
     elements: list[str] = []
 
     for slot_track in slot_tracks:
-        samples = _tl_sample_explosion_track(slot_track, context, bullet_rgb, background_rgb)
+        samples = _tl_sample_explosion_track(
+            slot_track,
+            context,
+            bullet_rgb,
+            background_rgb,
+        )
         if samples is None:
             continue
 
@@ -727,7 +799,9 @@ def _tl_explosion_elements(
             stroke_color_times, stroke_color_values, total_duration_ms
         )
 
-        opacity_times, opacity_values = _tl_compress_scalar_track(times, samples.opacity_values)
+        opacity_times, opacity_values = _tl_compress_scalar_track(
+            times, samples.opacity_values
+        )
         opacity_times, opacity_values = _tl_pad_local_track(
             opacity_times, opacity_values, total_duration_ms
         )
@@ -745,15 +819,17 @@ def _tl_explosion_elements(
             total_duration_ms=total_duration_ms,
         )
 
-        elements.append(
-            f'<g opacity="{_tl_num(opacity_values[0])}" '
-            f'transform="translate({_tl_num(center_values[0][0])} {_tl_num(center_values[0][1])})">'
-            f'{_tl_point_animate_transform(center_values, center_times, total_duration_ms, discrete=True)}'
+        opacity_animate = (
             f'<animate attributeName="opacity" '
             f'values="{";".join(_tl_num(value) for value in opacity_values)}" '
             f'{_tl_key_times_attr(opacity_times, total_duration_ms)} '
             f'dur="{total_duration_ms}ms" repeatCount="indefinite" calcMode="discrete"/>'
-            f"{path_markup}</g>"
+        )
+        elements.append(
+            f'<g opacity="{_tl_num(opacity_values[0])}" '
+            f'transform="translate({_tl_num(center_values[0][0])} {_tl_num(center_values[0][1])})">'
+            f'{_tl_point_animate_transform(center_values, center_times, total_duration_ms, discrete=True)}'
+            f"{opacity_animate}{path_markup}</g>"
         )
 
     return elements
@@ -767,9 +843,11 @@ def _tl_ship_elements(
     x_values = [_tl_ship_center_x(context, frame.ship_x) for frame in frames]
     times, x_values = _tl_compress_linear_scalar_track(times, x_values, eps=1e-12)
     times, x_values = _tl_pad_local_track(times, x_values, total_duration_ms)
+    use_start = (
+        f'<use href="#s" transform="translate(0 {_tl_num(y_top)})" x="{_tl_num(x_values[0])}"'
+    )
     values = ";".join(_tl_num(value) for value in x_values)
     key_times_attr = _tl_key_times_attr(times, total_duration_ms)
-
     animate_x = _tl_scalar_animate(
         attribute_name="x",
         values=values,
@@ -777,10 +855,13 @@ def _tl_ship_elements(
         total_duration_ms=total_duration_ms,
         discrete=False,
     )
-    return [
+    inline_markup = f"{use_start}>{animate_x}</use>"
+
+    grouped_markup = (
         f'<g transform="translate(0 {_tl_num(y_top)})"><use href="#s" x="{_tl_num(x_values[0])}">'
         f"{animate_x}</use></g>"
-    ]
+    )
+    return [_tl_shorter_markup(inline_markup, grouped_markup)]
 
 
 def _tl_transition_forced_indices(values: list[float], threshold: float = 0.5) -> set[int]:
@@ -1145,7 +1226,9 @@ def _tl_collect_explosion_stroke_color_usage(
 
         default_progress = _tl_explosion_progress(first_active)
         default_color = _tl_blend_hex_over_background(
-            bullet_rgb, background_rgb, _tl_explosion_fade(default_progress)
+            bullet_rgb,
+            background_rgb,
+            _tl_explosion_fade(default_progress),
         )
 
         stroke_color_values: list[str] = []
@@ -1154,7 +1237,9 @@ def _tl_collect_explosion_stroke_color_usage(
             if explosion is not None:
                 current_progress = _tl_explosion_progress(explosion)
                 current_color = _tl_blend_hex_over_background(
-                    bullet_rgb, background_rgb, _tl_explosion_fade(current_progress)
+                    bullet_rgb,
+                    background_rgb,
+                    _tl_explosion_fade(current_progress),
                 )
             stroke_color_values.append(current_color)
 
