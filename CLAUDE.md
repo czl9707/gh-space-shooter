@@ -48,6 +48,10 @@ This is a CLI tool that transforms GitHub contribution graphs into animated spac
 ### Core Flow
 
 1. **CLI (`cli.py`)** - Typer-based entry point that orchestrates the pipeline
+   - Options:
+     - `--write-dataurl-to` / `-wdt` - Generate WebP as data URL in HTML `<img>` tag and write to text file
+     - `--output` / `-o` - Generate animated visualization (GIF or WebP)
+     - `--write-dataurl-to` and `--output` are mutually exclusive
 2. **GitHubClient (`github_client.py`)** - Fetches contribution data via GitHub GraphQL API, returns typed `ContributionData` dict
 3. **Animator (`game/animator.py`)** - Main game loop that coordinates strategy execution and frame generation
 4. **GameState (`game/game_state.py`)** - Central state container holding ship, enemies, bullets, explosions
@@ -72,6 +76,17 @@ All game objects inherit from `Drawable` (`game/drawables/drawable.py`):
 Drawables: `Ship`, `Enemy`, `Bullet`, `Explosion`, `Starfield`
 
 The `RenderContext` (`game/render_context.py`) holds theming (colors, cell sizes, padding) and coordinate conversion helpers.
+
+### Output Providers
+
+Output providers encode frames to different formats for writing:
+- **`GifOutputProvider`** - Animated GIF format
+- **`WebPOutputProvider`** - Animated WebP format
+- **`WebpDataUrlOutputProvider`** - HTML `<img>` tag with WebP data URL for direct embedding
+
+Each provider implements:
+- `encode(frames, frame_duration) -> bytes` - Encode frames to output format
+- `write(path, data) -> None` - Write encoded data to file (providers store path from constructor)
 
 ### Animation Loop
 
