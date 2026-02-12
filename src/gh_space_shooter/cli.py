@@ -100,6 +100,8 @@ def main(
             raise CLIError(
                 "Cannot specify both --output and --write-dataurl-to. Choose one."
             )
+        if not out and not write_dataurl_to:
+            out = f"{username}-gh-space-shooter.gif"
 
         # Load data from file or GitHub
         if raw_input:
@@ -179,16 +181,6 @@ def _save_data_to_file(data: ContributionData, file_path: str) -> None:
 def _resolve_provider(file_path: str, is_dataurl: bool) -> OutputProvider:
     """
     Resolve the appropriate output provider based on file path and mode.
-
-    Args:
-        file_path: Path to the output file
-        is_dataurl: Whether to generate data URL mode
-
-    Returns:
-        An OutputProvider instance
-
-    Raises:
-        CLIError: If provider resolution fails
     """
     try:
         if is_dataurl:
@@ -202,18 +194,6 @@ def _resolve_provider(file_path: str, is_dataurl: bool) -> OutputProvider:
 def _setup_animator(strategy_name: str, data: ContributionData, fps: int, watermark: bool) -> Animator:
     """
     Set up strategy and animator.
-
-    Args:
-        strategy_name: Name of the strategy (column, row, random)
-        data: Contribution data from GitHub
-        fps: Frames per second
-        watermark: Whether to add watermark
-
-    Returns:
-        Configured Animator instance
-
-    Raises:
-        CLIError: If strategy name is unknown
     """
     if strategy_name == "column":
         strategy: BaseStrategy = ColumnStrategy()
