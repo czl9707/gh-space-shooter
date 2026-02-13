@@ -41,6 +41,13 @@ class _ExplosionTrackSamples:
     opacity_values: list[float]
 
 
+@dataclass
+class _EnemyTrackData:
+    enemies_by_id: dict[str, tuple[int, int]]
+    frame_times: list[int]
+    health_series_by_id: dict[str, list[int | None]]
+
+
 def encode_svg_timeline_sequence(frames: list[SvgTimelineFrame], frame_duration: int) -> bytes:
     """Encode timeline snapshots into a compact animated SVG.
 
@@ -66,8 +73,12 @@ def _tl_encode_svg_timeline_sequence_with_enemy_groupings(
     total_duration_ms = max(1, len(frames) * frame_duration)
     width, height = _tl_resolve_timeline_dimensions(frames)
 
-    star_defs, star_symbol_ids = _tl_star_template_defs(frames)
-    enemy_fill_color_counts = _tl_collect_enemy_fill_color_usage(frames, context)
+    star_tracks, star_template_counts = _tl_collect_star_tracks_and_template_counts(
+        frames, context
+    )
+    star_defs, star_symbol_ids = _tl_star_template_defs_from_counts(star_template_counts)
+    enemy_track_data = _tl_collect_enemy_track_data(frames)
+    enemy_fill_color_counts = _tl_collect_enemy_fill_color_usage(enemy_track_data, context)
     explosion_stroke_color_counts = _tl_collect_explosion_stroke_color_usage(
         frames, context, total_duration_ms
     )
@@ -77,7 +88,7 @@ def _tl_encode_svg_timeline_sequence_with_enemy_groupings(
     explosion_elements = _tl_explosion_elements(
         frames, context, total_duration_ms, explosion_stroke_palette
     )
-    star_elements = _tl_star_elements(frames, context, total_duration_ms, star_symbol_ids)
+    star_elements = _tl_star_elements_from_tracks(star_tracks, total_duration_ms, star_symbol_ids)
     bullet_elements = _tl_bullet_elements(frames, context, total_duration_ms)
     ship_elements = _tl_ship_elements(frames, context, total_duration_ms)
     palette_css = _tl_palette_style(enemy_fill_palette, explosion_stroke_palette)
@@ -85,7 +96,7 @@ def _tl_encode_svg_timeline_sequence_with_enemy_groupings(
     best_minified: str | None = None
     for grouping in enemy_groupings:
         enemy_elements = _tl_enemy_elements(
-            frames,
+            enemy_track_data,
             context,
             total_duration_ms,
             enemy_fill_palette,
@@ -179,6 +190,14 @@ def _tl_star_elements(
         return []
 
     star_tracks = _tl_collect_star_tracks(frames, context)
+    return _tl_star_elements_from_tracks(star_tracks, total_duration_ms, star_symbol_ids)
+
+
+def _tl_star_elements_from_tracks(
+    star_tracks: dict[int, list[_StarTrackSample]],
+    total_duration_ms: int,
+    star_symbol_ids: dict[tuple[int, str], str],
+) -> list[str]:
     elements: list[str] = []
     for _star_id, samples in sorted(star_tracks.items()):
         star_element = _tl_render_star_track(
@@ -194,13 +213,52 @@ def _tl_collect_star_tracks(
     frames: list[SvgTimelineFrame], context: RenderContext
 ) -> dict[int, list[_StarTrackSample]]:
     star_tracks: dict[int, list[_StarTrackSample]] = {}
+    step = context.cell_size + context.cell_spacing
+    padding = context.padding
     for frame in frames:
+        frame_time = frame.time_ms
         for star in frame.stars:
-            x, y = context.get_cell_position(star.x, star.y)
-            star_tracks.setdefault(star.id, []).append(
-                (frame.time_ms, x, y, star.size, star.brightness)
-            )
+            samples = star_tracks.get(star.id)
+            if samples is None:
+                samples = []
+                star_tracks[star.id] = samples
+            x = padding + star.x * step
+            y = padding + star.y * step
+            samples.append((frame_time, x, y, star.size, star.brightness))
     return star_tracks
+
+
+def _tl_collect_star_tracks_and_template_counts(
+    frames: list[SvgTimelineFrame],
+    context: RenderContext,
+) -> tuple[dict[int, list[_StarTrackSample]], dict[tuple[int, str], int]]:
+    star_tracks: dict[int, list[_StarTrackSample]] = {}
+    template_counts: dict[tuple[int, str], int] = {}
+    template_key_cache: dict[tuple[int, float], tuple[int, str]] = {}
+    step = context.cell_size + context.cell_spacing
+    padding = context.padding
+
+    for frame in frames:
+        frame_time = frame.time_ms
+        for star in frame.stars:
+            samples = star_tracks.get(star.id)
+            if samples is None:
+                samples = []
+                star_tracks[star.id] = samples
+            x = padding + star.x * step
+            y = padding + star.y * step
+            samples.append((frame_time, x, y, star.size, star.brightness))
+
+            cache_key = (star.size, star.brightness)
+            template_key = template_key_cache.get(cache_key)
+            if template_key is None:
+                star_value = max(0, min(255, int(255 * star.brightness)))
+                fill = _tl_hex((star_value, star_value, star_value))
+                template_key = (star.size, fill)
+                template_key_cache[cache_key] = template_key
+            template_counts[template_key] = template_counts.get(template_key, 0) + 1
+
+    return star_tracks, template_counts
 
 
 def _tl_render_star_track(
@@ -340,19 +398,33 @@ def _tl_star_visibility_track(
     return _tl_pad_local_track(visibility_times, visibility_values, total_duration_ms)
 
 
-def _tl_enemy_elements(
-    frames: list[SvgTimelineFrame],
-    context: RenderContext,
-    total_duration_ms: int,
-    fill_palette: dict[str, str],
-    grouping: _EnemyGroupingMode = "column",
-) -> list[str]:
+def _tl_collect_enemy_track_data(frames: list[SvgTimelineFrame]) -> _EnemyTrackData:
     enemies_by_id: dict[str, tuple[int, int]] = {}
     for enemy in frames[0].enemies:
         enemies_by_id[enemy.id] = (enemy.x, enemy.y)
 
     enemy_health_by_frame = [{enemy.id: enemy.health for enemy in frame.enemies} for frame in frames]
-    frame_times = [frame.time_ms for frame in frames]
+    health_series_by_id: dict[str, list[int | None]] = {}
+    for enemy_id in enemies_by_id:
+        health_series_by_id[enemy_id] = [frame_map.get(enemy_id) for frame_map in enemy_health_by_frame]
+
+    return _EnemyTrackData(
+        enemies_by_id=enemies_by_id,
+        frame_times=[frame.time_ms for frame in frames],
+        health_series_by_id=health_series_by_id,
+    )
+
+
+def _tl_enemy_elements(
+    enemy_track_data: _EnemyTrackData,
+    context: RenderContext,
+    total_duration_ms: int,
+    fill_palette: dict[str, str],
+    grouping: _EnemyGroupingMode = "column",
+) -> list[str]:
+    enemies_by_id = enemy_track_data.enemies_by_id
+    frame_times = enemy_track_data.frame_times
+    health_series_by_id = enemy_track_data.health_series_by_id
 
     grouped_enemy_ids: dict[int, list[str]] = {}
     if grouping == "column":
@@ -383,9 +455,7 @@ def _tl_enemy_elements(
             else:
                 axis_value, _ = context.get_cell_position(x_cell, 0)
 
-            health_series: list[int | None] = []
-            for frame_map in enemy_health_by_frame:
-                health_series.append(frame_map.get(enemy_id))
+            health_series = health_series_by_id[enemy_id]
 
             initial_health = next((value for value in health_series if value is not None), None)
             if initial_health is None:
@@ -398,7 +468,7 @@ def _tl_enemy_elements(
             previous: int | None = initial_health
 
             for index, health in enumerate(health_series):
-                current_ms = frames[index].time_ms
+                current_ms = frame_times[index]
                 if health is None:
                     previous = None
                     continue
@@ -545,12 +615,26 @@ def _tl_star_template_defs(
         return [], {}
 
     template_counts: dict[tuple[int, str], int] = {}
+    template_key_cache: dict[tuple[int, float], tuple[int, str]] = {}
     for frame in frames:
         for star in frame.stars:
-            star_value = max(0, min(255, int(255 * star.brightness)))
-            fill = _tl_hex((star_value, star_value, star_value))
-            key = (star.size, fill)
-            template_counts[key] = template_counts.get(key, 0) + 1
+            cache_key = (star.size, star.brightness)
+            template_key = template_key_cache.get(cache_key)
+            if template_key is None:
+                star_value = max(0, min(255, int(255 * star.brightness)))
+                fill = _tl_hex((star_value, star_value, star_value))
+                template_key = (star.size, fill)
+                template_key_cache[cache_key] = template_key
+            template_counts[template_key] = template_counts.get(template_key, 0) + 1
+
+    return _tl_star_template_defs_from_counts(template_counts)
+
+
+def _tl_star_template_defs_from_counts(
+    template_counts: dict[tuple[int, str], int],
+) -> tuple[list[str], dict[tuple[int, str], str]]:
+    if not template_counts:
+        return [], {}
 
     symbol_ids = _tl_assign_compact_names_by_count(template_counts, reserved={"b", "s", "e"})
 
@@ -1174,21 +1258,16 @@ def _tl_build_palette_class_maps(
 
 
 def _tl_collect_enemy_fill_color_usage(
-    frames: list[SvgTimelineFrame],
+    enemy_track_data: _EnemyTrackData,
     context: RenderContext,
 ) -> dict[str, int]:
     """Collect approximate enemy color usage to assign compact class names."""
-    enemies_by_id: dict[str, tuple[int, int]] = {}
-    for enemy in frames[0].enemies:
-        enemies_by_id[enemy.id] = (enemy.x, enemy.y)
-
-    enemy_health_by_frame = [{enemy.id: enemy.health for enemy in frame.enemies} for frame in frames]
+    enemies_by_id = enemy_track_data.enemies_by_id
+    health_series_by_id = enemy_track_data.health_series_by_id
     color_counts: dict[str, int] = {}
 
     for enemy_id in sorted(enemies_by_id):
-        health_series: list[int | None] = []
-        for frame_map in enemy_health_by_frame:
-            health_series.append(frame_map.get(enemy_id))
+        health_series = health_series_by_id[enemy_id]
 
         initial_health = next((value for value in health_series if value is not None), None)
         if initial_health is None:

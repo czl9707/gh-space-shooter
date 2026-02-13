@@ -6,38 +6,37 @@ from ._svg_shared import _to_compact_name
 
 
 _XML_ATTR_VALUE_RE = re.compile(r'\s[a-zA-Z_:][-\w:.]*="([^"]*)"')
-_XML_ATTR_RE = re.compile(r'\s([a-zA-Z_:][-\w:.]*)="([^"]*)"')
 _XML_PREDEFINED_ENTITIES = {"lt", "gt", "amp", "apos", "quot"}
-_XML_PREFIX_ENTITY_ATTRS = {"keyTimes", "values"}
+_VALUES_ATTR = "values"
+_KEY_TIMES_ATTR = "keyTimes"
 
 
 def _tl_entity_minify(svg_markup: str) -> str:
     if not svg_markup:
         return svg_markup
 
-    values = _XML_ATTR_VALUE_RE.findall(svg_markup)
-    if not values:
-        return svg_markup
-
     counts: dict[str, int] = {}
-    for value in values:
+    for match in _XML_ATTR_VALUE_RE.finditer(svg_markup):
+        value = match.group(1)
         counts[value] = counts.get(value, 0) + 1
 
+    if not counts:
+        return svg_markup
+
     ordered_values = sorted(
-        counts.keys(),
-        key=lambda value: (
-            -(counts[value] * len(value)),
-            -counts[value],
-            -len(value),
-            value,
+        counts.items(),
+        key=lambda item: (
+            -(item[1] * len(item[0])),
+            -item[1],
+            -len(item[0]),
+            item[0],
         ),
     )
 
     selected: list[tuple[str, str]] = []
     used_names = set(_XML_PREDEFINED_ENTITIES)
     name_index = 0
-    for value in ordered_values:
-        count = counts[value]
+    for value, count in ordered_values:
         if count < 2:
             continue
 
@@ -110,27 +109,36 @@ def _tl_next_available_entity_name(
 
 
 def _tl_best_prefix_entity_candidate(svg_markup: str, name: str) -> tuple[str, str] | None:
-    prefix_counts: dict[tuple[str, str], int] = {}
-    for attribute, value in _XML_ATTR_RE.findall(svg_markup):
-        if attribute not in _XML_PREFIX_ENTITY_ATTRS:
-            continue
+    attribute_value_counts: dict[tuple[str, str], int] = {}
+    for attribute, value in _tl_iter_prefix_attribute_values(svg_markup):
         if "&" in value or ";" not in value:
             continue
-        tokens = value.split(";")
-        if len(tokens) < 6:
+        key = (attribute, value)
+        attribute_value_counts[key] = attribute_value_counts.get(key, 0) + 1
+
+    if not attribute_value_counts:
+        return None
+
+    prefix_counts: dict[tuple[str, str], int] = {}
+    for (attribute, value), occurrence_count in attribute_value_counts.items():
+        semicolon_positions: list[int] = []
+        search_start = 0
+        for _ in range(320):
+            position = value.find(";", search_start)
+            if position < 0:
+                break
+            semicolon_positions.append(position)
+            search_start = position + 1
+
+        if len(semicolon_positions) < 5:
             continue
 
-        token_limit = min(len(tokens) - 1, 320)
-        parts: list[str] = []
-        for index in range(token_limit):
-            parts.append(tokens[index])
-            if index < 3:
+        for position in semicolon_positions[3:]:
+            if position < 30:
                 continue
-            prefix = ";".join(parts)
-            if len(prefix) < 30:
-                continue
+            prefix = value[:position]
             key = (attribute, prefix)
-            prefix_counts[key] = prefix_counts.get(key, 0) + 1
+            prefix_counts[key] = prefix_counts.get(key, 0) + occurrence_count
 
     if not prefix_counts:
         return None
@@ -151,3 +159,40 @@ def _tl_best_prefix_entity_candidate(svg_markup: str, name: str) -> tuple[str, s
             best_key = key
 
     return best_key
+
+
+def _tl_iter_prefix_attribute_values(svg_markup: str) -> list[tuple[str, str]]:
+    values_marker = f'{_VALUES_ATTR}="'
+    key_times_marker = f'{_KEY_TIMES_ATTR}="'
+    values_marker_len = len(values_marker)
+    key_times_marker_len = len(key_times_marker)
+
+    entries: list[tuple[str, str]] = []
+    search_start = 0
+    while True:
+        values_pos = svg_markup.find(values_marker, search_start)
+        key_times_pos = svg_markup.find(key_times_marker, search_start)
+        if values_pos < 0 and key_times_pos < 0:
+            break
+
+        if values_pos >= 0 and (key_times_pos < 0 or values_pos < key_times_pos):
+            attribute = _VALUES_ATTR
+            attr_pos = values_pos
+            marker_len = values_marker_len
+        else:
+            attribute = _KEY_TIMES_ATTR
+            attr_pos = key_times_pos
+            marker_len = key_times_marker_len
+
+        if attr_pos <= 0 or not svg_markup[attr_pos - 1].isspace():
+            search_start = attr_pos + 1
+            continue
+
+        value_start = attr_pos + marker_len
+        value_end = svg_markup.find('"', value_start)
+        if value_end < 0:
+            break
+        entries.append((attribute, svg_markup[value_start:value_end]))
+        search_start = value_end + 1
+
+    return entries
