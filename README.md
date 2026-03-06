@@ -50,7 +50,7 @@ Then display it in your README:
 - `output-path` (optional): Where to save the animation, supports `.gif` or `.webp` (default: `gh-space-shooter.gif`)
 - `strategy` (optional): Attack pattern - `column`, `row`, or `random` (default: `random`)
 - `fps` (optional): Frames per second for the animation (default: `40`)
-- `write-dataurl-to` (optional): Write WebP as HTML `<img>` data URL to text file
+- `no-amend` (optional): Set to `true` to disable amending previous commits (default: `false`)
 - `commit-message` (optional): Commit message for the update
 
 ### From PyPI
