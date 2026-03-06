@@ -60,19 +60,11 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
-        if [ -n "${{ inputs.write-dataurl-to }}" ]; then
-          gh-space-shooter ${{ inputs.username }} \
-            --write-dataurl-to ${{ inputs.write-dataurl-to }} \
-            --strategy ${{ inputs.strategy }} \
-            --fps ${{ inputs.fps }}
-          echo "output-file=${{ inputs.write-dataurl-to }}" >> $GITHUB_OUTPUT
-        else
-          gh-space-shooter ${{ inputs.username }} \
-            --output ${{ inputs.output-path }} \
-            --strategy ${{ inputs.strategy }} \
-            --fps ${{ inputs.fps }}
-          echo "output-file=${{ inputs.output-path }}" >> $GITHUB_OUTPUT
-        fi
+        gh-space-shooter ${{ inputs.username }} \
+          --output ${{ inputs.output-path }} \
+          --strategy ${{ inputs.strategy }} \
+          --fps ${{ inputs.fps }}
+        echo "output-file=${{ inputs.output-path }}" >> $GITHUB_OUTPUT
 
     - name: Commit and push
       shell: bash
