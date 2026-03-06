@@ -1,5 +1,5 @@
 name: 'GitHub Space Shooter'
-description: 'Transform your GitHub contribution graph into a space shooter game GIF or embeddable HTML'
+description: 'Transform your GitHub contribution graph into a space shooter game GIF'
 author: 'zane'
 
 branding:
@@ -26,9 +26,10 @@ inputs:
     description: 'Frames per second for the animation (default: 40)'
     required: false
     default: '40'
-  write-dataurl-to:
-    description: 'Write WebP as HTML <img> data URL to text file (mutually exclusive with output-path)'
+  no-amend:
+    description: 'Disable amending previous commits (always create new commits)'
     required: false
+    default: 'false'
   commit-message:
     description: 'Commit message for the GIF update'
     required: false
