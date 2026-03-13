@@ -81,7 +81,7 @@ runs:
         SHOULD_AMEND="false"
         if [ "$NO_AMEND" != "true" ]; then
           LAST_MSG=$(git log -1 --pretty=%s 2>/dev/null || echo "")
-          LAST_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | grep -v '^$' || echo "")
+          LAST_FILES=$(git show --name-only --pretty=format: HEAD 2>/dev/null | grep -v '^$' || echo "")
 
           echo "LAST_MSG: ${LAST_MSG} | COMMIT_MSG: ${COMMIT_MSG}"
           echo "LAST_FILES: ${LAST_FILES} | OUTPUT_PATH: ${OUTPUT_PATH}"
