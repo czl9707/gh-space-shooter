@@ -20,6 +20,10 @@ jobs:
   build:
     name: Publish
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pull-requests: read
+      contents: write
 
     steps:
     - uses: actions/checkout@v6
