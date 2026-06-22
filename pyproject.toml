@@ -1,6 +1,6 @@
 [project]
 name = "gh-space-shooter"
-version = "2.0.2"
+version = "2.0.3"
 description = "A CLI tool that visualizes GitHub contribution graphs as gamified GIFs"
 readme = "README.md"
 authors = [
@@ -29,7 +29,7 @@ build-backend = "hatchling.build"
 
 
 [tool.bumpversion]
-current_version = "2.0.2"
+current_version = "2.0.3"
 parse = """(?x)
   (?P<major>0|[1-9]\\d*)\\.
   (?P<minor>0|[1-9]\\d*)\\.
