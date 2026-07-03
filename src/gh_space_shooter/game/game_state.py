@@ -67,9 +67,9 @@ class GameState(Drawable):
         self.ship.animate(delta_time)
         for enemy in self.enemies:
             enemy.animate(delta_time)
-        for bullet in self.bullets:
+        for bullet in list(self.bullets):
             bullet.animate(delta_time)
-        for explosion in self.explosions:
+        for explosion in list(self.explosions):
             explosion.animate(delta_time)
 
     def draw(self, draw: ImageDraw.ImageDraw, context: "RenderContext") -> None:
