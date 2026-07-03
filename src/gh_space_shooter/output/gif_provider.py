@@ -39,7 +39,7 @@ class GifOutputProvider(OutputProvider):
                 append_images=frame_list[1:],
                 duration=frame_duration,
                 loop=0,
-                optimize=False,
+                optimize=True,
             )
 
         return buffer.getvalue()
