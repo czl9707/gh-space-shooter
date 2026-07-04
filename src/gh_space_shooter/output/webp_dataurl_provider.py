@@ -50,9 +50,9 @@ class WebpDataUrlOutputProvider(OutputProvider):
                 append_images=frame_list[1:],
                 duration=frame_duration,
                 loop=0,
-                lossless=True,
-                quality=100,
-                method=4,
+                lossless=False,
+                quality=85,
+                method=6,
             )
 
             # Convert to data URL
