@@ -55,6 +55,7 @@ Then display it in your README:
 - `strategy` (optional): Attack pattern - `column`, `row`, or `random` (default: `random`)
 - `fps` (optional): Frames per second for the animation (default: `40`)
 - `no-amend` (optional): Set to `true` to disable amending previous commits (default: `false`)
+- `no-commit` (optional): Set to `true` to skip committing and pushing entirely; the generated file is left in the workspace so you can commit it yourself, e.g. to batch several action runs into one commit (default: `false`)
 - `commit-message` (optional): Commit message for the update
 
 ### From PyPI

@@ -30,6 +30,10 @@ inputs:
     description: 'Disable amending previous commits (always create new commits)'
     required: false
     default: 'false'
+  no-commit:
+    description: 'Skip committing and pushing entirely (leave the generated file in the workspace)'
+    required: false
+    default: 'false'
   commit-message:
     description: 'Commit message for the GIF update'
     required: false
@@ -67,6 +71,7 @@ runs:
         echo "output-file=${{ inputs.output-path }}" >> $GITHUB_OUTPUT
 
     - name: Commit and push
+      if: ${{ inputs.no-commit != 'true' }}
       shell: bash
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
